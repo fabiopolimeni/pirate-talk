@@ -1,0 +1,35 @@
+{
+  "name": "pirate-talk-app",
+  "version": "0.0.1",
+  "description": "Allow to have a conversation with a tourist guide, drassed as a pirate.",
+  "main": "simple-bot-slack.js",
+  "scripts": {
+    "start": "node simple-bot-slack.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "botkit": "^0.6.4",
+    "botkit-storage-mongo": "^1.0.7",
+    "dashbot": "^9.2.0",
+    "debug": "^3.1.0",
+    "express": "^4.16.2",
+    "querystring": "^0.2.0",
+    "request": "^2.83.0",
+    "dotenv": "^4.0.0",
+    "botkit-middleware-watson": "^1.5.0",
+    "wordfilter": "^0.2.6"
+  },
+  "engines": {
+    "node": "8.x"
+  },
+  "repository": {
+    "url": "https://glitch.com/edit/#!/pirate-talk"
+  },
+  "license": "Apache 2.0",
+  "keywords": [
+    "node",
+    "glitch",
+    "express",
+    "watson"
+  ]
+}
