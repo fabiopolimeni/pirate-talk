@@ -8,7 +8,8 @@ module.exports = function(webserver, botkit, storePath) {
       debug: true,
       json_file_store : storePath,
       scopes: ['bot'],
-      require_delivery : true
+      require_delivery : true,
+      send_via_rtm : true
   };
 
   var controller = botkit.slackbot(configuration);
