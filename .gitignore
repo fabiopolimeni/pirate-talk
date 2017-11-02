@@ -57,3 +57,11 @@ typings/
 # dotenv environment variables file
 .env
 
+# project specific files
+.db
+.vscode
+.data
+node_modules
+components/routes/_*
+
+package-lock\.json
