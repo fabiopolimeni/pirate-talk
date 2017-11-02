@@ -2,9 +2,9 @@
   "name": "pirate-talk-app",
   "version": "0.0.1",
   "description": "Allow to have a conversation with a tourist guide, drassed as a pirate.",
-  "main": "simple-bot-slack.js",
+  "main": "bot.js",
   "scripts": {
-    "start": "node simple-bot-slack.js"
+    "start": "node bot.js"
   },
   "dependencies": {
     "body-parser": "^1.18.2",
