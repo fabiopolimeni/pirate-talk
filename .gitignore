@@ -61,7 +61,7 @@ typings/
 .db
 .vscode
 .data
-.glitch_assets
+.glitch-assets
 node_modules
 components/routes/_*
 
