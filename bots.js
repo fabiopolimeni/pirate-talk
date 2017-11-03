@@ -8,12 +8,12 @@ module.exports = function(webserver, middleware) {
   if (process.env.USE_SLACK) {
     var Slack = require('./components/slack/slack-bot')(webserver, Botkit, storeDir);
     Slack.controller.middleware.receive.use(middleware.receive);
-    Slack.bot.startRTM();
+    Slack.controller.createWebhookEndpoints(webserver, Slack.bot);
 
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
     require("fs").readdirSync(normalizedPath).forEach(function(file) {
-      require("./skills/" + file)(Slack.controller);
+      require("./skills/" + file)(Slack.controller, middleware);
     });
 
     console.log('Slack bot is live');
@@ -27,7 +27,7 @@ module.exports = function(webserver, middleware) {
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
     require("fs").readdirSync(normalizedPath).forEach(function(file) {
-      require("./skills/" + file)(Facebook.controller);
+      require("./skills/" + file)(Facebook.controller, middleware);
     });
 
     console.log('Facebook bot is live');
@@ -41,7 +41,7 @@ module.exports = function(webserver, middleware) {
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
     require("fs").readdirSync(normalizedPath).forEach(function(file) {
-      require("./skills/" + file)(Twilo.controller);
+      require("./skills/" + file)(Twilio.controller, middleware);
     });
 
     console.log('Twilio bot is live');

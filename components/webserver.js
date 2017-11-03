@@ -1,11 +1,15 @@
 var express = require('express');
 var bodyParser = require('body-parser');
+var verify = require('./security');
 var debug = require('debug')('pirate-talk:webserver');
 
 module.exports = function(controller) {
 
     var webserver = express();
-    webserver.use(bodyParser.json());
+    webserver.use(bodyParser.json({
+      verify: verify
+    }));
+  
     webserver.use(bodyParser.urlencoded({ extended: true }));
     webserver.use(express.static('public'));
 
