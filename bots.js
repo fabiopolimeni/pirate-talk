@@ -1,14 +1,12 @@
 require('dotenv').load();
 
 module.exports = function(webserver, middleware) {
-
-  var Botkit = require('botkit');
   var storeDir = __dirname + '/.data/db/';
 
   if (process.env.USE_SLACK) {
-    var Slack = require('./components/slack/slack-bot')(webserver, Botkit, storeDir);
+    var Slack = require('./components/slack/slack-bot')(webserver, storeDir);
     Slack.controller.middleware.receive.use(middleware.receive);
-    Slack.controller.createWebhookEndpoints(webserver, Slack.bot);
+    Slack.controller.createWebhookEndpoints(webserver);
 
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
@@ -21,7 +19,7 @@ module.exports = function(webserver, middleware) {
   }
 
   if (process.env.USE_FACEBOOK) {
-    var Facebook = require('./components/facebook/facebook-bot')(webserver, Botkit, storeDir);
+    var Facebook = require('./components/facebook/facebook-bot')(webserver, storeDir);
     Facebook.controller.middleware.receive.use(middleware.receive);
     Facebook.controller.createWebhookEndpoints(webserver, Facebook.bot);
 
@@ -35,7 +33,7 @@ module.exports = function(webserver, middleware) {
   }
 
   if (process.env.USE_TWILIO) {
-    var Twilio = require('./components/twilio/twilio-bot')(webserver, Botkit, storeDir);
+    var Twilio = require('./components/twilio/twilio-bot')(webserver, storeDir);
     Twilio.controller.middleware.receive.use(middleware.receive);
     Twilio.controller.createWebhookEndpoints(webserver, Twilio.bot);
 

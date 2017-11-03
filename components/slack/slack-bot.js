@@ -1,17 +1,18 @@
 var debug = require('debug')('pirate-talk:slackbot')
 
-module.exports = function(webserver, botkit, storePath) {
+module.exports = function(webserver, storePath) {
 
   var configuration = {
       clientId: process.env.SLACK_CLIEND_ID,
       clientSecret: process.env.SLACK_CLIENT_SECRET,
-      //debug: true,
+      debug: true,
       json_file_store : storePath,
       //require_delivery : true,
       //send_via_rtm : true,
       scopes: ['bot']
   };
 
+  var botkit = require('botkit');
   var controller = botkit.slackbot(configuration);
   var bot = controller.spawn({
     token: process.env.SLACK_TOKEN

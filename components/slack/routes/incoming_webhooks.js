@@ -11,8 +11,7 @@ module.exports = function(webserver, controller) {
 
         // If a url verification request, then given token
         // must correspond to the one set in the .env file.
-        if (req.body.type === 'url_verification'
-        && process.env.SLACK_TOKEN != req.body.token) {
+        if (req.body.token && process.env.SLACK_TOKEN != req.body.token) {
             console.error('Vrification rquest error: token received '
              + res.body.token + ', while expected ' + process.env.SLACK_TOKEN);
             return;
