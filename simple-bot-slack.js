@@ -19,18 +19,24 @@ require('dotenv').load();
 var clone = require('clone');
 var botkit = require('botkit');
 var express = require('express');
+
 var middleware = require('botkit-middleware-watson')({
-  username: process.env.CONVERSATION_USERNAME,
-  password: process.env.CONVERSATION_PASSWORD,
-  workspace_id: process.env.WORKSPACE_ID,
-  url: process.env.CONVERSATION_URL || 'https://gateway.watsonplatform.net/conversation/api',
+  username: process.env.WATSON_CONVERSATION_USERNAME,
+  password: process.env.WATSON_CONVERSATION_PASSWORD,
+  workspace_id: process.env.WATSON_WORKSPACE_ID,
+  url: process.env.WATSON_CONVERSATION_URL || 'https://gateway.watsonplatform.net/conversation/api',
   version_date: '2017-05-26'
 });
 
 // Configure your bot.
 var controller = botkit.slackbot({
-  require_delivery: true,
-  send_via_rtm : true
+  clientId: process.env.SLACK_CLIEND_ID,
+  clientSecret: process.env.SLACK_CLIENT_SECRET,
+  //debug: true,
+  json_file_store : __dirname + '/.data/db/',
+  require_delivery : true,
+  send_via_rtm : true,
+  scopes: ['bot']
 });
 
 var instance = controller.spawn({
@@ -86,8 +92,8 @@ controller.hears(['card'], ['direct_message', 'direct_mention', 'mention'], func
 controller.hears(['say'], ['direct_message', 'direct_mention', 'mention'], function(bot, message) {
   console.log('Say: ' + JSON.stringify(message));
   botsays(bot, {
-    text: "Does anyone want to talk to me?",
-    channel : "C7S1UCYQJ"
+    text: "Does anyone want to talk to me? Contact me in private <@U7RBKES8Y>",
+    channel : "D7UBP2605"
   });
 });
 
@@ -160,6 +166,7 @@ instance.startRTM(function(err, bot, payload) {
 //setTimeout(instance.destroy.bind(instance), 2000);
 
 // 30 minutes = 1.8e+6 milliseconds
+/*
 setInterval(function() {
   botsays(instance, {
     text: "Does anyone want to talk to me?\nContact me in private @Barbarossa the Pirate",
@@ -171,6 +178,10 @@ setInterval(function() {
 setInterval(function(){
   console.log("Keep the system alive: " + new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''))
 }, 2.4e+5);
+*/
+
+// Load in some helpers to keep the Glitch server alive
+require(__dirname + '/components/glitch.js')(controller);
 
 // Create an Express app
 var app = express();

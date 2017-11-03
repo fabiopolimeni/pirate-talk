@@ -1,0 +1,32 @@
+{
+  "name": "Pirate Tours chatbot",
+  "description": "Talk to Pirate Tours guids, on Slack and Messanger, or Twilio, to find out about the most thrilling pirate stories.",
+  "repository": "https://github.com/fabiopolimeni/pirate-talk",
+  "keywords": ["node", "bots", "slack", "botkit", "messanger", "facebook", "twilio", "watson"],
+  "website": "https://glitch.com/edit/#!/pirate-talk",
+  "success_url":"/",
+  "addons":[
+    {
+      "plan": "mongolab",
+      "as": "MONGO"
+    }
+  ],
+  "env": {
+      "slack_token" : {
+          "description": "Integration Token provided by Slack",
+          "required":false
+      },
+      "slack_client_id": {
+          "description": "Client ID provided by Slack",
+          "required":false
+      },
+      "slack_client_secret": {
+          "description": "Client Secret provided by Slack",
+          "required":false
+      },
+      "botkit_studio_token": {
+          "description": "Token associated with your bot in Botkit Studio",
+          "required":false
+      }
+  }
+}
