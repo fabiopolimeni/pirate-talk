@@ -9,6 +9,7 @@ module.exports = function(controller) {
         if (!payload.identity.team_id) {
             debug('Error: received an oauth response without a team id', payload);
         }
+        
         controller.storage.teams.get(payload.identity.team_id, function(err, team) {
             if (err) {
                 debug('Error: could not load team from storage system:', payload.identity.team_id, err);

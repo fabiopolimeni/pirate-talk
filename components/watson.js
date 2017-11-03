@@ -1,4 +1,5 @@
 require('dotenv').load();
+var debug = require('debug')('pirate:talk')
 
 module.exports = function(){
 
@@ -12,10 +13,12 @@ module.exports = function(){
 
     // Customize Watson Middleware object's before and after callbacks.
     middleware.before = function(message, payload, callback) {
+        debug('Watson before: %j', payload);
         callback(null, payload);
     }
 
     middleware.after = function(message, response, callback) {
+        debug('Watson after: %j', response);
         callback(null, response);
     }
 
