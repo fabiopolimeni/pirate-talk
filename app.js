@@ -7,7 +7,7 @@ var middelware = require(__dirname + '/components/watson.js')();
 var webserver = require(__dirname + '/components/webserver.js')();
 
 // Create the Botkit controller, which controls all instances of the bot
-var controller = require(__dirname + '/bots.js')(webserver, middelware);
+require(__dirname + '/bots.js')(webserver, middelware);
 
 // Load in some helpers to keep the Glitch server alive
-require(__dirname + '/components/glitch.js')(controller);
+require(__dirname + '/components/glitch.js')();

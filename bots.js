@@ -17,7 +17,7 @@ module.exports = function(webserver, middleware) {
     });
 
     console.log('Slack bot is live');
-    return Slack.controller;
+    return;
   }
 
   if (process.env.USE_FACEBOOK) {

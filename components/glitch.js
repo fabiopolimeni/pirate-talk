@@ -1,5 +1,5 @@
 var request = require('request');
-module.exports = function(controller) {
+module.exports = function() {
 
   function keepalive() {
 
