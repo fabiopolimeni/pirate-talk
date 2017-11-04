@@ -23,19 +23,22 @@ module.exports = function (controller, middleware) {
       text: msg.watsonData.output.text.join('\n'),
       actions: [{
         "name": "ok",
-        "text": ":thumbsup: ",
+        "text": "Right :thumbsup:",
         "value": "good",
-        "type": "button",
+        "style": "primary",
+        "type": "button"
       }, {
         "name": "soso",
-        "text": ":raised_hand:",
+        "text": "Improve :raised_hand:",
         "value": "maybe",
-        "type": "button",
+        "style": "default",
+        "type": "button"
       }, {
         "name": "no",
-        "text": ":thumbsdown:",
+        "text": "Wrong :thumbsdown:",
         "value": "bad",
-        "type": "button",
+        "style": "danger",
+        "type": "button"
       }]
     });
   
@@ -75,11 +78,11 @@ module.exports = function (controller, middleware) {
         var response = clone(attachments);
         response.forEach(function(item, index, arr) {
           if (item.actions)
-            item.actions = null;
+            item.actions = undefined;
         });
 
         console.log('Response: ' + JSON.stringify(response));
-        bot.replyInteractive(message, {response});
+        //bot.replyInteractive(message, {response});
       }
   });
 
