@@ -1,6 +1,6 @@
 require('dotenv').load();
 
-module.exports = function(webserver, middleware) {
+module.exports = function (webserver, middleware) {
   var storeDir = __dirname + '/.data/db/';
 
   if (process.env.USE_SLACK) {
@@ -10,7 +10,7 @@ module.exports = function(webserver, middleware) {
 
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
-    require("fs").readdirSync(normalizedPath).forEach(function(file) {
+    require("fs").readdirSync(normalizedPath).forEach(function (file) {
       require("./skills/" + file)(Slack.controller, middleware);
     });
 
@@ -24,7 +24,7 @@ module.exports = function(webserver, middleware) {
 
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
-    require("fs").readdirSync(normalizedPath).forEach(function(file) {
+    require("fs").readdirSync(normalizedPath).forEach(function (file) {
       require("./skills/" + file)(Facebook.controller, middleware);
     });
 
@@ -38,7 +38,7 @@ module.exports = function(webserver, middleware) {
 
     // Load all the handled skills
     var normalizedPath = require("path").join(__dirname, "skills");
-    require("fs").readdirSync(normalizedPath).forEach(function(file) {
+    require("fs").readdirSync(normalizedPath).forEach(function (file) {
       require("./skills/" + file)(Twilio.controller, middleware);
     });
 
@@ -46,4 +46,3 @@ module.exports = function(webserver, middleware) {
   }
 
 };
-

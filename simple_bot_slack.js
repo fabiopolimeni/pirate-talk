@@ -33,9 +33,9 @@ var controller = botkit.slackbot({
   clientId: process.env.SLACK_CLIEND_ID,
   clientSecret: process.env.SLACK_CLIENT_SECRET,
   //debug: true,
-  json_file_store : __dirname + '/.data/db/',
-  require_delivery : true,
-  send_via_rtm : true,
+  json_file_store: __dirname + '/.data/db/',
+  require_delivery: true,
+  send_via_rtm: true,
   scopes: ['bot']
 });
 
@@ -66,21 +66,21 @@ middleware.after = function(message, response, callback) {
 }
 */
 
-controller.hears(['card'], ['direct_message', 'direct_mention', 'mention'], function(bot, message) {
+controller.hears(['card'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
   console.log('Card: ' + JSON.stringify(message));
   bot.reply(message, {
-    attachments:[{
+    attachments: [{
       "mrkdwn_in": ["text"],
-      text : 'This is _what_ the guide will say! It can be short or long.'
-    },{
+      text: 'This is _what_ the guide will say! It can be short or long.'
+    }, {
       text: 'Second attachment',
       actions: [{
-        "name":"yes",
+        "name": "yes",
         "text": "Yes",
         "value": "yes",
         "type": "button",
-      },{
-        "name":"no",
+      }, {
+        "name": "no",
         "text": "No",
         "value": "no",
         "type": "button",
@@ -89,46 +89,48 @@ controller.hears(['card'], ['direct_message', 'direct_mention', 'mention'], func
   });
 });
 
-controller.hears(['say'], ['direct_message', 'direct_mention', 'mention'], function(bot, message) {
+controller.hears(['say'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
   console.log('Say: ' + JSON.stringify(message));
   botsays(bot, {
     text: "Does anyone want to talk to me? Contact me in private <@U7UBP24P7>",
-    channel : "D7UBP2605"
+    channel: "D7UBP2605"
   });
 });
 
-controller.hears(['reset'], ['direct_message', 'direct_mention', 'mention'], function(bot, message) {
-  middleware.updateContext(message.user, { }, function() {
+controller.hears(['reset'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
+  middleware.updateContext(message.user, {}, function () {
     const msg = clone(message);
-    msg.text = 'reset';    
-    middleware.sendToWatson(bot, msg, function() {
+    msg.text = 'reset';
+    middleware.sendToWatson(bot, msg, function () {
       console.log('Reset: ' + JSON.stringify(msg));
-      
+
       var attachments = [];
-      if (typeof msg.watsonData.output !== 'undefined'
-         && typeof msg.watsonData.output.action !== 'undefined'
-         && typeof msg.watsonData.output.action.slack !== 'undefined') {
+      if (typeof msg.watsonData.output !== 'undefined' &&
+        typeof msg.watsonData.output.action !== 'undefined' &&
+        typeof msg.watsonData.output.action.slack !== 'undefined') {
         //bot.reply(msg, msg.watsonData.output.action.slack);
-        
+
         if (typeof msg.watsonData.output.action.slack.attachments !== 'undefined')
           attachments = msg.watsonData.output.action.slack.attachments;
       }
-      
+
       // wrap dialog output into attachments
       attachments.push({
-        mrkdwn_in : ['text'],
-        text : msg.watsonData.output.text.join('\n')
+        mrkdwn_in: ['text'],
+        text: msg.watsonData.output.text.join('\n')
       });
-      
+
       //console.log('Attachments: ' + JSON.stringify(attachments));
-      bot.reply(msg, {attachments});
-      
+      bot.reply(msg, {
+        attachments
+      });
+
     });
   });
 });
 
-controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], function(bot, message) {
-  middleware.interpret(bot, message, function() {
+controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
+  middleware.interpret(bot, message, function () {
     console.log('Message: ' + JSON.stringify(message));
     if (message.watsonError) {
       console.log(message.watsonError);
@@ -136,28 +138,30 @@ controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], functi
     } else {
       //console.log('Watson: ' + JSON.stringify(message.watsonData));
       var attachments = [];
-      if (typeof message.watsonData.output !== 'undefined'
-         && typeof message.watsonData.output.action !== 'undefined'
-         && typeof message.watsonData.output.action.slack !== 'undefined') {
+      if (typeof message.watsonData.output !== 'undefined' &&
+        typeof message.watsonData.output.action !== 'undefined' &&
+        typeof message.watsonData.output.action.slack !== 'undefined') {
         //bot.reply(message, message.watsonData.output.action.slack);
-        
+
         if (typeof message.watsonData.output.action.slack.attachments !== 'undefined')
           attachments = message.watsonData.output.action.slack.attachments;
       }
-      
+
       // wrap dialog output into attachments
       attachments.push({
-        mrkdwn_in : ['text'],
-        text : message.watsonData.output.text.join('\n')
+        mrkdwn_in: ['text'],
+        text: message.watsonData.output.text.join('\n')
       });
-      
+
       //console.log('Attachments: ' + JSON.stringify(attachments));
-      bot.reply(message, {attachments});
+      bot.reply(message, {
+        attachments
+      });
     }
   });
 });
 
-instance.startRTM(function(err, bot, payload) {
+instance.startRTM(function (err, bot, payload) {
   if (err) {
     console.error('Could not connect to Slack: ' + err);
   }
@@ -187,6 +191,6 @@ require(__dirname + '/components/glitch.js')(controller);
 var app = express();
 var port = process.env.PORT || 5000;
 app.set('port', port);
-app.listen(port, function() {
+app.listen(port, function () {
   console.log('Client server listening on port ' + port);
 });
