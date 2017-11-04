@@ -4,7 +4,7 @@ module.exports = function (webserver, middleware) {
   var storeDir = __dirname + '/.data/db/';
 
   if (process.env.USE_SLACK) {
-    var Slack = require('./components/slack/slack-bot')(webserver, storeDir);
+    var Slack = require('./components/slack/slack_bot')(webserver, storeDir);
     //Slack.controller.middleware.receive.use(middleware.receive);
     Slack.controller.createWebhookEndpoints(webserver);
 
@@ -18,7 +18,7 @@ module.exports = function (webserver, middleware) {
   }
 
   if (process.env.USE_FACEBOOK) {
-    var Facebook = require('./components/facebook/facebook-bot')(webserver, storeDir);
+    var Facebook = require('./components/facebook/facebook_bot')(webserver, storeDir);
     //Facebook.controller.middleware.receive.use(middleware.receive);
     Facebook.controller.createWebhookEndpoints(webserver, Facebook.bot);
 
@@ -32,7 +32,7 @@ module.exports = function (webserver, middleware) {
   }
 
   if (process.env.USE_TWILIO) {
-    var Twilio = require('./components/twilio/twilio-bot')(webserver, storeDir);
+    var Twilio = require('./components/twilio/twilio_bot')(webserver, storeDir);
     //Twilio.controller.middleware.receive.use(middleware.receive);
     Twilio.controller.createWebhookEndpoints(webserver, Twilio.bot);
 
