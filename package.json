@@ -22,7 +22,8 @@
     "clone": "^2.1.1",
     "mocha": "^4.0.1",
     "nock": "^9.0.27",
-    "sinon": "^4.1.0"
+    "sinon": "^4.1.0",
+    "deepmerge": "^2.0.1"
   },
   "engines": {
     "node": "8.x"

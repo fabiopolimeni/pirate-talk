@@ -1,12 +1,13 @@
 var debug = require('debug')('pirate-talk:slackbot')
 
-module.exports = function (webserver, storePath) {
+module.exports = function (webserver, storage) {
 
   var configuration = {
     clientId: process.env.SLACK_CLIEND_ID,
     clientSecret: process.env.SLACK_CLIENT_SECRET,
-    debug: true,
-    json_file_store: storePath,
+    //debug: true,
+    //json_file_store: storage_path,
+    storage: storage,
     //require_delivery : true,
     //send_via_rtm : true,
     scopes: ['bot']
@@ -17,6 +18,7 @@ module.exports = function (webserver, storePath) {
   var bot = controller.spawn({
     token: process.env.SLACK_TOKEN
   });
+  
   /*
     bot.startRTM(function(err, bot, payload) {
       if (err) {
@@ -26,6 +28,7 @@ module.exports = function (webserver, storePath) {
       }
     });
   */
+  
   // Import all the pre-defined routes that are present in /components/routes
   var normalizedPath = require("path").join(__dirname, "routes");
   require("fs").readdirSync(normalizedPath).forEach(function (file) {

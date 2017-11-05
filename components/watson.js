@@ -1,5 +1,5 @@
 require('dotenv').load();
-var debug = require('debug')('pirate:talk')
+var debug = require('debug')('pirate-talk:watson')
 
 module.exports = function(){
 
