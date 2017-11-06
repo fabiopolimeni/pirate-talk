@@ -47,7 +47,7 @@ module.exports = function (controller, middleware) {
       });
     }
     
-    // Contruct the replay message
+    // Construct the replay message
     var reply = {
         text: msg.watsonData.output.text.join('\n'),
         attachments : []
@@ -94,7 +94,7 @@ module.exports = function (controller, middleware) {
     // a message has been delivered and visible or not.
     // This is needed in order to avoid a message
     // to be received out of order, as it will happen
-    // if some of the messages are heavir than others,
+    // if some of the messages are heavier than others,
     // such as, when we have media files (images) attached.
     setTimeout(function() {
       console.log('Reply: ' + JSON.stringify(reply));
@@ -102,7 +102,7 @@ module.exports = function (controller, middleware) {
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
       // of dialog_turn_counter starts over again, hence, previous dialogs will be overwritten,
-      //  and this will prevent the array to grow indefinitelly.
+      //  and this will prevent the array to grow indefinitely.
       dialogs.splice(msg.watsonData.context.system.dialog_turn_counter, 0, {
         user_input: msg.watsonData.input.text,
         bot_output: msg.watsonData.output.text,
