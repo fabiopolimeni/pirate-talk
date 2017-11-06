@@ -99,13 +99,13 @@ module.exports = function (controller, middleware) {
       console.log('Reply: ' + JSON.stringify(reply));
       bot.reply(msg, reply);
 
-      var time_date = new Date();
+      let time_date = new Date();
       time_date.setMilliseconds(msg.ts);
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
       // of dialog_turn_counter starts over again, hence, previous dialogs will be overwritten,
       // and this will prevent the array to grow indefinitely.
-      dialogs.splice(msg.watsonData.context.system.dialog_turn_counter, 0, {
+      dialogs.splice(msg.watsonData.context.system.dialog_turn_counter, 1, {
         user_input: msg.watsonData.input.text,
         bot_output: msg.watsonData.output.text,
         intents: msg.watsonData.intents,
@@ -119,25 +119,22 @@ module.exports = function (controller, middleware) {
       // At this point we need to check if a jump is needed in order to continue with the conversation.
       // If a jump is needed, then we send Watson a continue placeholder to be consumed.
       if (msg.watsonData.output.action && msg.watsonData.output.action.wait_before_continue) {
-        var continue_request = clone(msg);
+        let continue_request = clone(msg);
         continue_request.text = msg.watsonData.output.action.wait_before_continue;
-        middleware.sendToWatson(bot, continue_request, function () {
-          console.log('Continue: ' + JSON.stringify(continue_request));
-        });
+        middleware.sendToWatson(bot, continue_request);
       }
       
-      console.error('Dialogs: ' + JSON.stringify(dialogs))
+      console.error('Dialogs: ' + JSON.stringify(dialogs, null, 2))
     }, (has_attachments) ? 1000 : 0 );
   }
   
   // Handle reset special case
   controller.hears(['reset'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
     middleware.updateContext(message.user, {}, function (context) {
-      var reset_request = clone(message);
-      reset_request.text = 'reset';
+      let reset_request = clone(message);
+      reset_request.text = 'hello';
       console.log('Context: ' + JSON.stringify(context));
-      middleware.sendToWatson(bot, reset_request, function () {
-        console.log('Reset: ' + JSON.stringify(reset_request));
+      middleware.sendToWatson(bot, reset_request).then(function() {
         bot_reply(bot, reset_request);
       });
     });
@@ -170,7 +167,7 @@ module.exports = function (controller, middleware) {
         
         // Get last stored dialog, if the dialog_turn and the conversation_id match,
         // then, add the feedback score to the object before we save it to storage.
-        var current = dialogs.find(function(dialog, index){
+        let current = dialogs.find(function(dialog, index){
           return (index == context.system.dialog_turn_counter)
             && (dialog.conversation_id == context.conversation_id);
         })
@@ -178,15 +175,15 @@ module.exports = function (controller, middleware) {
         // We also need the previous dialog, as we want to
         // extract what the bot has asked in the first place.
         // This is not a mandatory requirement though.
-        var previous = dialogs.find(function(dialog, index){
+        let previous = dialogs.find(function(dialog, index){
           return (index == context.system.dialog_turn_counter - 1)
             && (dialog.conversation_id == context.conversation_id);
         })
         
         // Store given feedback for later revision
-        var storage_result = false;
+        let storage_result = false;
         if (current) {
-          var feedback = merge(
+          let feedback = merge(
             {
               action: message.text,
               bot_asked: (previous) ? previous.bot_output: ''
