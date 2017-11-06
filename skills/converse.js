@@ -12,6 +12,7 @@ module.exports = function (controller, middleware) {
   // Store the given feedback for the workspace
   function store_dialog(controller, feedback, workspace_id) {
     return controller.storage.workspaces.get(workspace_id, function(err, workspace) {
+      if (err) console.warn('Error: could not read from workspace %s', workspace_id);
 
       // Create a new one if none exists
       if (!workspace) {
@@ -28,7 +29,7 @@ module.exports = function (controller, middleware) {
       console.log('Saving workspace: ' + workspace_id);
       return controller.storage.workspaces.save(workspace, function(err, id) {
         if (err) {
-          console.error('Error: could not workspace %s', id);
+          console.error('Error: could not save workspace %s', id);
           return false;
         }
 
@@ -64,8 +65,11 @@ module.exports = function (controller, middleware) {
       
       // Reply with feedback request, that is, adding action buttons
       reply.attachments.push({
-        unfurl_media: false,
-        callback_id: msg.watsonData.context.conversation_id,
+        // callback_id will be in the form of: conversation_id:turn_counter.
+        // This is necessary because we can have answers that are given
+        // out of order, it is not necessarily last a lifo process.
+        callback_id: msg.watsonData.context.conversation_id.concat(
+          ':', msg.watsonData.context.system.dialog_turn_counter),
         mrkdwn_in: ['text'],
         text: '',
         actions: [{
@@ -100,7 +104,6 @@ module.exports = function (controller, middleware) {
       bot.reply(msg, reply);
 
       let time_date = new Date();
-      time_date.setMilliseconds(msg.ts);
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
       // of dialog_turn_counter starts over again, hence, previous dialogs will be overwritten,
@@ -113,34 +116,38 @@ module.exports = function (controller, middleware) {
         turn_id: msg.watsonData.context.system.dialog_turn_counter,
         conversation_id: msg.watsonData.context.conversation_id,
         user_id: msg.user,
-        date: time_date.toUTCString()
+        date: time_date.toString()
       })
+      
+      console.error('Dialogs: ' + JSON.stringify(dialogs, null, 2))
 
       // At this point we need to check if a jump is needed in order to continue with the conversation.
       // If a jump is needed, then we send Watson a continue placeholder to be consumed.
       if (msg.watsonData.output.action && msg.watsonData.output.action.wait_before_continue) {
         let continue_request = clone(msg);
         continue_request.text = msg.watsonData.output.action.wait_before_continue;
-        middleware.sendToWatson(bot, continue_request);
+        console.log('Continue: ' + JSON.stringify(continue_request));
+        middleware.sendToWatson(bot, continue_request, { }, function() {
+          bot_reply(bot, continue_request);
+        });
       }
       
-      console.error('Dialogs: ' + JSON.stringify(dialogs, null, 2))
     }, (has_attachments) ? 1000 : 0 );
   }
   
   // Handle reset special case
   controller.hears(['reset'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
     middleware.updateContext(message.user, {}, function (context) {
+      console.log('Context: ' + JSON.stringify(context));
       let reset_request = clone(message);
       reset_request.text = 'hello';
-      console.log('Context: ' + JSON.stringify(context));
-      middleware.sendToWatson(bot, reset_request).then(function() {
+      middleware.sendToWatson(bot, reset_request, { }, function() {
         bot_reply(bot, reset_request);
       });
     });
   });
   
-  // Handle common case through Watson conversation system
+  // Handle common cases with  Watson conversation
   controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
     middleware.interpret(bot, message, function () {
       if (message.watsonError) {
@@ -160,29 +167,37 @@ module.exports = function (controller, middleware) {
     // Since event handler aren't processed by middleware and have no watsonData attribute,
     // the context has to be extracted from the current user stored data.
     middleware.readContext(message.user, function(err, context) {
-      if (!context) return;
+      if (!context || !message.callback_id) return;
+      
+      // parse callback_id to extract the conversation_id and the turn_id
+      let ids = message.callback_id.split(':', 2);
+      var callback_conv_id = ids[0];
+      var callback_turn_id = ids[1];
     
       // check message.actions and message.callback_id to see what action to take...
-      if (message && message.callback_id && message.callback_id == context.conversation_id) {
+      if (callback_conv_id == context.conversation_id) {
         
         // Get last stored dialog, if the dialog_turn and the conversation_id match,
         // then, add the feedback score to the object before we save it to storage.
-        let current = dialogs.find(function(dialog, index){
-          return (index == context.system.dialog_turn_counter)
+        let current = dialogs.find(function(dialog){
+          return (dialog.turn_id == callback_turn_id)
             && (dialog.conversation_id == context.conversation_id);
         })
         
         // We also need the previous dialog, as we want to
         // extract what the bot has asked in the first place.
         // This is not a mandatory requirement though.
-        let previous = dialogs.find(function(dialog, index){
-          return (index == context.system.dialog_turn_counter - 1)
+        let previous = dialogs.find(function(dialog){
+          return (dialog.turn_id == callback_turn_id - 1)
             && (dialog.conversation_id == context.conversation_id);
         })
         
         // Store given feedback for later revision
-        let storage_result = false;
+        var storage_result = false;
         if (current) {
+          console.log('Current: %s\nPrevious: %s',
+            JSON.stringify(current), JSON.stringify(previous));
+          
           let feedback = merge(
             {
               action: message.text,
