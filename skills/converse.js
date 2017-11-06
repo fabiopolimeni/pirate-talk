@@ -11,7 +11,7 @@ module.exports = function (controller, middleware) {
   
   // Store the given feedback for the workspace
   function store_dialog(controller, feedback, workspace_id) {
-    controller.storage.workspaces.get(workspace_id, function(err, workspace) {
+    return controller.storage.workspaces.get(workspace_id, function(err, workspace) {
 
       // Create a new one if none exists
       if (!workspace) {
@@ -26,10 +26,13 @@ module.exports = function (controller, middleware) {
       
       // Save the updated workspace
       console.log('Saving workspace: ' + workspace_id);
-      controller.storage.workspaces.save(workspace, function(err, id) {
+      return controller.storage.workspaces.save(workspace, function(err, id) {
         if (err) {
           console.error('Error: could not workspace %s', id);
+          return false;
         }
+
+        return true;
       });
     });
   }
@@ -87,45 +90,55 @@ module.exports = function (controller, middleware) {
       });
     }
     
-    // If we have attachments to process, wait
-    // for 0.5 sec, before sending the next message.
-    // Unfortunately, it doesn't seem there is a
-    // more elegant way, in slack, to know whether
+    // If we have attachments to process, wait for 0.5 sec, before sending the next message.
+    // Unfortunately, it doesn't seem there is a more elegant way, in slack, to know whether
     // a message has been delivered and visible or not.
-    // This is needed in order to avoid a message
-    // to be received out of order, as it will happen
-    // if some of the messages are heavier than others,
-    // such as, when we have media files (images) attached.
+    // This is needed in order to avoid a message to be received out of order, as it will happen
+    // if some of the messages are heavier than others, such as, when include media files (e.g. images).
     setTimeout(function() {
       console.log('Reply: ' + JSON.stringify(reply));
       bot.reply(msg, reply);
+
+      var time_date = new Date();
+      time_date.setMilliseconds(msg.ts);
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
       // of dialog_turn_counter starts over again, hence, previous dialogs will be overwritten,
-      //  and this will prevent the array to grow indefinitely.
+      // and this will prevent the array to grow indefinitely.
       dialogs.splice(msg.watsonData.context.system.dialog_turn_counter, 0, {
         user_input: msg.watsonData.input.text,
         bot_output: msg.watsonData.output.text,
         intents: msg.watsonData.intents,
         entities: msg.watsonData.entities,
         turn_id: msg.watsonData.context.system.dialog_turn_counter,
-        conversation_id: msg.watsonData.context.conversation_id
+        conversation_id: msg.watsonData.context.conversation_id,
+        user_id: msg.user,
+        date: time_date.toUTCString()
       })
+
+      // At this point we need to check if a jump is needed in order to continue with the conversation.
+      // If a jump is needed, then we send Watson a continue placeholder to be consumed.
+      if (msg.watsonData.output.action && msg.watsonData.output.action.wait_before_continue) {
+        var continue_request = clone(msg);
+        continue_request.text = msg.watsonData.output.action.wait_before_continue;
+        middleware.sendToWatson(bot, continue_request, function () {
+          console.log('Continue: ' + JSON.stringify(continue_request));
+        });
+      }
       
-      //console.error('Dialogs: ' + JSON.stringify(dialogs))
-      
-    }, (has_attachments) ? 500 : 0 );
+      console.error('Dialogs: ' + JSON.stringify(dialogs))
+    }, (has_attachments) ? 1000 : 0 );
   }
   
   // Handle reset special case
   controller.hears(['reset'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
     middleware.updateContext(message.user, {}, function (context) {
-      const msg = clone(message);
-      msg.text = 'reset';
+      var reset_request = clone(message);
+      reset_request.text = 'reset';
       console.log('Context: ' + JSON.stringify(context));
-      middleware.sendToWatson(bot, msg, function () {
-        console.log('Reset: ' + JSON.stringify(msg));
-        bot_reply(bot, msg);
+      middleware.sendToWatson(bot, reset_request, function () {
+        console.log('Reset: ' + JSON.stringify(reset_request));
+        bot_reply(bot, reset_request);
       });
     });
   });
@@ -171,6 +184,7 @@ module.exports = function (controller, middleware) {
         })
         
         // Store given feedback for later revision
+        var storage_result = false;
         if (current) {
           var feedback = merge(
             {
@@ -180,7 +194,7 @@ module.exports = function (controller, middleware) {
             current
           );
           
-          store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID);
+          storage_result = store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID);
         }
 
         // Update the original message, that is,
@@ -190,7 +204,9 @@ module.exports = function (controller, middleware) {
           text: message.original_message.text,
           attachments : [{
             fallback: '',
-            footer: 'Thanks for the feedback :clap:',
+            footer: storage_result
+              ? 'Thanks for the feedback :clap:'
+              : 'Some problem occurred when storing feedback :scream:',
             ts: message.action_ts
           }]
         });
