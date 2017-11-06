@@ -10,9 +10,9 @@ module.exports = function (controller, middleware) {
   var dialogs = [];
   
   // Store the given feedback for the workspace
-  function store_dialog(controller, feedback, workspace_id) {
-    return controller.storage.workspaces.get(workspace_id, function(err, workspace) {
-      if (err) console.warn('Error: could not read from workspace %s', workspace_id);
+  function store_dialog(controller, feedback, workspace_id, callback) {
+    controller.storage.workspaces.get(workspace_id, function(err, workspace) {
+      if (err) console.warn('Warn: could not read from workspace %s', workspace_id);
 
       // Create a new one if none exists
       if (!workspace) {
@@ -22,18 +22,36 @@ module.exports = function (controller, middleware) {
         }
       }
       
-      // Add the feedback to the workspace
-      workspace.feedbacks.push(feedback);
+      
+      // Check whether the feedback entry already exists.
+      let entry = workspace.feedbacks.find(function(fb) {
+        return (feedback.turn_id == fb.turn_id
+          && feedback.conversation_id == fb.conversation_id);
+      });
+      
+      if (entry) {
+        // Notify the user everything is ok, but
+        // do not write it out, as it already exists.
+        if (callback && typeof callback === 'function') {
+          callback(true);
+        } 
+      }
+      else {
+        // Add the feedback to the workspace, and save it out
+        workspace.feedbacks.push(feedback);
+      }
       
       // Save the updated workspace
       console.log('Saving workspace: ' + workspace_id);
-      return controller.storage.workspaces.save(workspace, function(err, id) {
+      controller.storage.workspaces.save(workspace, function(err, id) {
         if (err) {
           console.error('Error: could not save workspace %s', id);
-          return false;
         }
 
-        return true;
+        if (callback && typeof callback === 'function') {
+          console.error('Callback: ' + callback);
+          callback(!(err));
+        }
       });
     });
   }
@@ -119,7 +137,7 @@ module.exports = function (controller, middleware) {
         date: time_date.toString()
       })
       
-      console.error('Dialogs: ' + JSON.stringify(dialogs, null, 2))
+      //console.error('Dialogs: ' + JSON.stringify(dialogs, null, 2))
 
       // At this point we need to check if a jump is needed in order to continue with the conversation.
       // If a jump is needed, then we send Watson a continue placeholder to be consumed.
@@ -193,7 +211,6 @@ module.exports = function (controller, middleware) {
         })
         
         // Store given feedback for later revision
-        var storage_result = false;
         if (current) {
           console.log('Current: %s\nPrevious: %s',
             JSON.stringify(current), JSON.stringify(previous));
@@ -206,22 +223,21 @@ module.exports = function (controller, middleware) {
             current
           );
           
-          storage_result = store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID);
+          store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
+            // Update the original message, that is, the user will be 
+            // notified its contribution it has been taken into account.
+            bot.replyInteractive(message, {
+              text: message.original_message.text,
+              attachments : [{
+                fallback: '',
+                footer: stored
+                  ? 'Thanks for the feedback :clap:'
+                  : 'Some problem occurred when storing feedback :scream:',
+                ts: message.action_ts
+              }]
+            });
+          });
         }
-
-        // Update the original message, that is,
-        // the user will be notified its contribution
-        // it has been taken into account.
-        bot.replyInteractive(message, {
-          text: message.original_message.text,
-          attachments : [{
-            fallback: '',
-            footer: storage_result
-              ? 'Thanks for the feedback :clap:'
-              : 'Some problem occurred when storing feedback :scream:',
-            ts: message.action_ts
-          }]
-        });
       }
     });
   });
