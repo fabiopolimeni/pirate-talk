@@ -4,14 +4,41 @@ var clone = require('clone');
 var debug = require('debug')('pirate-talk:converse');
 var merge = require('deepmerge');
 
+var mongo = require('botkit-storage-mongo')({
+    mongoUri: process.env.MONGO_URI, tables: [
+      'workspaces', 'feedbacks'
+    ]
+  });
+
 module.exports = function (controller, middleware) {
 
   // Dialog history
   var dialogs = [];
   
-  // Store the given feedback for the workspace
+  // Store the given feedback into a list of feedbacks
+  function store_feedback(feedback, workspace_id, callback) {
+    var db_entry = merge(feedback, {
+      id: feedback.conversation_id.concat(':', feedback.turn_id),
+      workspace: workspace_id
+    });
+      
+    // Save a new feedback
+    console.log('Saving feedback: ' + workspace_id);
+    mongo.feedbacks.save(db_entry, function(err, id) {
+      if (err) {
+        console.error('Error: could not save workspace %s', id);
+      }
+      
+      if (callback && typeof callback === 'function') {
+        debug('Callback: ' + callback);
+        callback(!(err));
+      }
+    });
+  }
+  
+  // Store the given feedback into the workspace
   function store_dialog(controller, feedback, workspace_id, callback) {
-    controller.storage.workspaces.get(workspace_id, function(err, workspace) {
+    mongo.workspaces.get(workspace_id, function(err, workspace) {
       if (err) console.warn('Warn: could not read from workspace %s', workspace_id);
 
       // Create a new one if none exists
@@ -21,7 +48,6 @@ module.exports = function (controller, middleware) {
           feedbacks: []
         }
       }
-      
       
       // Check whether the feedback entry already exists.
       let entry = workspace.feedbacks.find(function(fb) {
@@ -43,13 +69,13 @@ module.exports = function (controller, middleware) {
       
       // Save the updated workspace
       console.log('Saving workspace: ' + workspace_id);
-      controller.storage.workspaces.save(workspace, function(err, id) {
+      mongo.workspaces.save(workspace, function(err, id) {
         if (err) {
           console.error('Error: could not save workspace %s', id);
         }
 
         if (callback && typeof callback === 'function') {
-          console.error('Callback: ' + callback);
+          debug('Callback: ' + callback);
           callback(!(err));
         }
       });
@@ -59,7 +85,7 @@ module.exports = function (controller, middleware) {
   // Main reply function, where all the logic to
   // interact with watson conversation is processed.
   function bot_reply(bot, msg) {
-    console.log('Message: ' + JSON.stringify(msg));
+    debug('Message: ' + JSON.stringify(msg));
 
     var has_attachments = false;
     if (msg.watsonData.output.action && msg.watsonData.output.action.attachments) {
@@ -118,7 +144,7 @@ module.exports = function (controller, middleware) {
     // This is needed in order to avoid a message to be received out of order, as it will happen
     // if some of the messages are heavier than others, such as, when include media files (e.g. images).
     setTimeout(function() {
-      console.log('Reply: ' + JSON.stringify(reply));
+      debug('Reply: ' + JSON.stringify(reply));
       bot.reply(msg, reply);
 
       let time_date = new Date();
@@ -137,14 +163,14 @@ module.exports = function (controller, middleware) {
         date: time_date.toString()
       })
       
-      //console.error('Dialogs: ' + JSON.stringify(dialogs, null, 2))
+      //debug('Dialogs: ' + JSON.stringify(dialogs, null, 2))
 
       // At this point we need to check if a jump is needed in order to continue with the conversation.
       // If a jump is needed, then we send Watson a continue placeholder to be consumed.
       if (msg.watsonData.output.action && msg.watsonData.output.action.wait_before_continue) {
         let continue_request = clone(msg);
         continue_request.text = msg.watsonData.output.action.wait_before_continue;
-        console.log('Continue: ' + JSON.stringify(continue_request));
+        debug('Continue: ' + JSON.stringify(continue_request));
         middleware.sendToWatson(bot, continue_request, { }, function() {
           bot_reply(bot, continue_request);
         });
@@ -156,7 +182,7 @@ module.exports = function (controller, middleware) {
   // Handle reset special case
   controller.hears(['reset'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
     middleware.updateContext(message.user, {}, function (context) {
-      console.log('Context: ' + JSON.stringify(context));
+      debug('Context: ' + JSON.stringify(context));
       let reset_request = clone(message);
       reset_request.text = 'hello';
       middleware.sendToWatson(bot, reset_request, { }, function() {
@@ -172,7 +198,7 @@ module.exports = function (controller, middleware) {
         console.error(message.watsonError);
         bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
       } else {
-        console.log('Watson: ' + JSON.stringify(message.watsonData));
+        debug('Watson: ' + JSON.stringify(message.watsonData));
         bot_reply(bot, message);
       }
     });
@@ -180,7 +206,7 @@ module.exports = function (controller, middleware) {
 
   // Receive an interactive message, and reply with a message that will replace the original
   controller.on('interactive_message_callback', function(bot, message) {
-    console.log('Interactive: ' + JSON.stringify(message));
+    debug('Interactive: ' + JSON.stringify(message));
     
     // Since event handler aren't processed by middleware and have no watsonData attribute,
     // the context has to be extracted from the current user stored data.
@@ -197,7 +223,7 @@ module.exports = function (controller, middleware) {
         
         // Get last stored dialog, if the dialog_turn and the conversation_id match,
         // then, add the feedback score to the object before we save it to storage.
-        let current = dialogs.find(function(dialog){
+        let cur_dialog = dialogs.find(function(dialog){
           return (dialog.turn_id == callback_turn_id)
             && (dialog.conversation_id == context.conversation_id);
         })
@@ -205,24 +231,40 @@ module.exports = function (controller, middleware) {
         // We also need the previous dialog, as we want to
         // extract what the bot has asked in the first place.
         // This is not a mandatory requirement though.
-        let previous = dialogs.find(function(dialog){
+        let prev_dialog = dialogs.find(function(dialog){
           return (dialog.turn_id == callback_turn_id - 1)
             && (dialog.conversation_id == context.conversation_id);
         })
         
         // Store given feedback for later revision
-        if (current) {
-          console.log('Current: %s\nPrevious: %s',
-            JSON.stringify(current), JSON.stringify(previous));
+        if (cur_dialog) {
+          //debug('Current: %s\nPrevious: %s',
+          //  JSON.stringify(cur_dialog), JSON.stringify(prev_dialog));
           
           let feedback = merge(
             {
               action: message.text,
-              bot_asked: (previous) ? previous.bot_output: ''
+              bot_asked: (prev_dialog) ? prev_dialog.bot_output: ''
             },
-            current
+            cur_dialog
           );
           
+          store_feedback(feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
+            // Update the original message, that is, the user will be 
+            // notified its contribution it has been taken into account.
+            bot.replyInteractive(message, {
+              text: message.original_message.text,
+              attachments : [{
+                fallback: '',
+                footer: stored
+                  ? 'Thanks for the feedback :clap:'
+                  : 'Some problem occurred when storing feedback :scream:',
+                ts: message.action_ts
+              }]
+            });
+          });
+          
+          /*
           store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
             // Update the original message, that is, the user will be 
             // notified its contribution it has been taken into account.
@@ -237,6 +279,7 @@ module.exports = function (controller, middleware) {
               }]
             });
           });
+          */
         }
       }
     });

@@ -9,7 +9,7 @@ module.exports = function (webserver, middleware) {
     Slack.controller.createWebhookEndpoints(webserver);
 
     // Load all the handled skills
-    var normalizedPath = require("path").join(__dirname, "skills");
+    var normalizedPath = require("path").join(__dirname, "./skills");
     require("fs").readdirSync(normalizedPath).forEach(function (file) {
       require("./skills/" + file)(Slack.controller, middleware);
     });
@@ -23,7 +23,7 @@ module.exports = function (webserver, middleware) {
     Facebook.controller.createWebhookEndpoints(webserver, Facebook.bot);
 
     // Load all the handled skills
-    var normalizedPath = require("path").join(__dirname, "skills");
+    var normalizedPath = require("path").join(__dirname, "./skills");
     require("fs").readdirSync(normalizedPath).forEach(function (file) {
       require("./skills/" + file)(Facebook.controller, middleware);
     });
@@ -37,7 +37,7 @@ module.exports = function (webserver, middleware) {
     Twilio.controller.createWebhookEndpoints(webserver, Twilio.bot);
 
     // Load all the handled skills
-    var normalizedPath = require("path").join(__dirname, "skills");
+    var normalizedPath = require("path").join(__dirname, "./skills");
     require("fs").readdirSync(normalizedPath).forEach(function (file) {
       require("./skills/" + file)(Twilio.controller, middleware);
     });
