@@ -10,6 +10,7 @@ module.exports = function (webserver, storage) {
     storage: storage,
     //require_delivery : true,
     //send_via_rtm : true,
+    stats_optout: true,
     scopes: ['bot']
   };
 

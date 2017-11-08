@@ -3,6 +3,7 @@ require('dotenv').load()
 var clone = require('clone');
 var debug = require('debug')('pirate-talk:converse');
 var merge = require('deepmerge');
+var CJSON = require('circular-json');
 
 var mongo = require('botkit-storage-mongo')({
     mongoUri: process.env.MONGO_URI, tables: [
@@ -190,7 +191,7 @@ module.exports = function (controller, middleware) {
       });
     });
   });
-  
+   
   // Handle common cases with  Watson conversation
   controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
     middleware.interpret(bot, message, function () {
@@ -203,7 +204,7 @@ module.exports = function (controller, middleware) {
       }
     });
   });
-
+  
   // Receive an interactive message, and reply with a message that will replace the original
   controller.on('interactive_message_callback', function(bot, message) {
     debug('Interactive: ' + JSON.stringify(message));
@@ -264,22 +265,23 @@ module.exports = function (controller, middleware) {
             });
           });
           
-          /*
-          store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
-            // Update the original message, that is, the user will be 
-            // notified its contribution it has been taken into account.
-            bot.replyInteractive(message, {
-              text: message.original_message.text,
-              attachments : [{
-                fallback: '',
-                footer: stored
-                  ? 'Thanks for the feedback :clap:'
-                  : 'Some problem occurred when storing feedback :scream:',
-                ts: message.action_ts
-              }]
+          if (process.env.STORE_DIALOGS_ON_WORKSPACE) {
+            store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
+              // Update the original message, that is, the user will be 
+              // notified its contribution it has been taken into account.
+              bot.replyInteractive(message, {
+                text: message.original_message.text,
+                attachments : [{
+                  fallback: '',
+                  footer: stored
+                    ? 'Thanks for the feedback :clap:'
+                    : 'Some problem occurred when storing feedback :scream:',
+                  ts: message.action_ts
+                }]
+              });
             });
-          });
-          */
+          }
+          
         }
       }
     });
