@@ -6,86 +6,73 @@ var merge = require('deepmerge');
 var CJSON = require('circular-json');
 
 var mongo = require('botkit-storage-mongo')({
-    mongoUri: process.env.MONGO_URI, tables: [
-      'workspaces', 'feedbacks'
-    ]
-  });
+  mongoUri: process.env.MONGO_URI, tables: [
+    'workspaces', 'feedbacks'
+  ]
+});
 
 module.exports = function (controller, middleware) {
-
-  // Dialog history
-  var dialogs = [];
   
-  // Store the given feedback into a list of feedbacks
-  function store_feedback(feedback, workspace_id, callback) {
-    var db_entry = merge(feedback, {
-      id: feedback.conversation_id.concat(':', feedback.turn_id),
-      workspace: workspace_id
+  // Keep an array of users in order to reduce concurrency
+  // as much as possible when storing history information.
+  var users = [];
+  
+  // Look up for a user, if doesn't exist, and `create` 
+  // is true, then, a new one will be created.
+  function findUser(user_id, create) {
+    // Find the user if exists
+    let user = users.find(function(item) {
+      return item.id && item.id == user_id;
     });
+    
+    if (!user && create) {
+      user = {
+        id: user_id,
+        history: []
+      };
       
-    // Save a new feedback
-    console.log('Saving feedback: ' + workspace_id);
-    mongo.feedbacks.save(db_entry, function(err, id) {
+      users.push(user);
+    }
+    
+    return user;
+  }
+  
+  function storeFeedback(storage, feedback, callback) {
+    debug('Saving feedback: %s', CJSON.stringify(feedback));
+    storage.feedbacks.save(feedback, function(err, id) {
       if (err) {
-        console.error('Error: could not save workspace %s', id);
+        console.error('Could not save feedback %s', feedback.id);
+        console.error('Error: %s', err);
       }
       
       if (callback && typeof callback === 'function') {
-        debug('Callback: ' + callback);
+        debug('storeFeedback.cb: ' + callback);
         callback(!(err));
       }
     });
   }
   
-  // Store the given feedback into the workspace
-  function store_dialog(controller, feedback, workspace_id, callback) {
-    mongo.workspaces.get(workspace_id, function(err, workspace) {
-      if (err) console.warn('Warn: could not read from workspace %s', workspace_id);
-
-      // Create a new one if none exists
-      if (!workspace) {
-        workspace = {
-          id: workspace_id,
-          feedbacks: []
-        }
-      }
+  function updateUserFeedback(bot, storage, message, suggestion, callback) {
+    // Retrieve the feedback from the database/filesystem
+    storage.feedbacks.get(message.callback_id, function(err, feedback) {
+      if (err) console.warn('Warn: could not retrieve feedback %s', message.callback_id);
       
-      // Check whether the feedback entry already exists.
-      let entry = workspace.feedbacks.find(function(fb) {
-        return (feedback.turn_id == fb.turn_id
-          && feedback.conversation_id == fb.conversation_id);
-      });
+      // Incorporate user's suggestions
+      feedback.suggestion = suggestion;
       
-      if (entry) {
-        // Notify the user everything is ok, but
-        // do not write it out, as it already exists.
-        if (callback && typeof callback === 'function') {
-          callback(true);
-        } 
-      }
-      else {
-        // Add the feedback to the workspace, and save it out
-        workspace.feedbacks.push(feedback);
-      }
+      // Store the feeback back
+      storeFeedback(storage, feedback, null);
       
-      // Save the updated workspace
-      console.log('Saving workspace: ' + workspace_id);
-      mongo.workspaces.save(workspace, function(err, id) {
-        if (err) {
-          console.error('Error: could not save workspace %s', id);
-        }
-
-        if (callback && typeof callback === 'function') {
-          debug('Callback: ' + callback);
-          callback(!(err));
-        }
-      });
+      if (callback && typeof callback === 'function') {
+        debug('updateUserFeedback.cb: ' + callback);
+        callback(!(err));
+      }
     });
   }
   
   // Main reply function, where all the logic to
   // interact with watson conversation is processed.
-  function bot_reply(bot, msg) {
+  function botConversationReply(bot, msg) {
     debug('Message: ' + JSON.stringify(msg));
 
     var has_attachments = false;
@@ -124,16 +111,16 @@ module.exports = function (controller, middleware) {
           "style": "primary",
           "type": "button"
         }, {
-          "name": "soso",
-          "text": "Improve :raised_hand:",
-          "value": "maybe",
-          "style": "default",
-          "type": "button"
-        }, {
           "name": "no",
           "text": "Wrong :thumbsdown:",
           "value": "bad",
           "style": "danger",
+          "type": "button"
+        }, {
+          "name": "soso",
+          "text": "Improve :raised_hand:",
+          "value": "maybe",
+          "style": "default",
           "type": "button"
         }]
       });
@@ -147,8 +134,10 @@ module.exports = function (controller, middleware) {
     setTimeout(function() {
       debug('Reply: ' + JSON.stringify(reply));
       bot.reply(msg, reply);
-
-      let time_date = new Date();
+      
+      // Retrieve the user, or make a new one if doesn't exist
+      let user = findUser(msg.user, true);
+      let dialogs = user.history;
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
       // of dialog_turn_counter starts over again, hence, previous dialogs will be overwritten,
@@ -161,7 +150,7 @@ module.exports = function (controller, middleware) {
         turn_id: msg.watsonData.context.system.dialog_turn_counter,
         conversation_id: msg.watsonData.context.conversation_id,
         user_id: msg.user,
-        date: time_date.toString()
+        date: (new Date()).toString()
       })
       
       //debug('Dialogs: ' + JSON.stringify(dialogs, null, 2))
@@ -173,11 +162,106 @@ module.exports = function (controller, middleware) {
         continue_request.text = msg.watsonData.output.action.wait_before_continue;
         debug('Continue: ' + JSON.stringify(continue_request));
         middleware.sendToWatson(bot, continue_request, { }, function() {
-          bot_reply(bot, continue_request);
+          botConversationReply(bot, continue_request);
         });
       }
       
     }, (has_attachments) ? 1000 : 0 );
+  }
+  
+  function botReplyToFeedbackButton(bot, message, stored) {   
+    // Update the original message, that is, the user will be 
+    // notified its contribution it has been taken into account.
+    bot.replyInteractive(message, {
+      text: message.original_message.text,
+      attachments : [{
+        fallback: '',
+        footer: stored
+          ? 'Thanks for the feedback :clap:'
+          : 'Some problem occurred when storing feedback :scream:',
+        ts: message.action_ts
+      }]
+    });
+  }
+  
+  function saveAndRespondToUserFeedback(bot, storage, message, context) {
+    // Retrieve the turn id
+    let ids = message.callback_id.split(':', 2);
+    let callback_conv_id = ids[0];
+    let callback_turn_id = ids[1];
+    
+    let user = findUser(message.user, false);
+    if (!user) return;
+    
+    let dialogs = user.history;
+    
+    // Get last stored dialog, if the dialog_turn and the conversation_id match,
+    // then, add the feedback score to the object before we save it to storage.
+    let cur_dialog = dialogs.find(function(dialog){
+      return (dialog.turn_id == callback_turn_id)
+        && (dialog.conversation_id == context.conversation_id);
+    })
+    
+    // We also need the previous dialog, as we want to
+    // extract what the bot has asked in the first place.
+    // This is not a mandatory requirement though.
+    let prev_dialog = dialogs.find(function(dialog){
+      return (dialog.turn_id == callback_turn_id - 1)
+        && (dialog.conversation_id == context.conversation_id);
+    })
+    
+    // Store given feedback for later revision
+    if (cur_dialog) {
+      //debug('Current: %s\nPrevious: %s',
+      //  JSON.stringify(cur_dialog), JSON.stringify(prev_dialog));
+      
+      let feedback = merge({
+        id: callback_conv_id.concat(':', callback_turn_id),
+        workspace: process.env.WATSON_WORKSPACE_ID,
+        action: message.text,
+        bot_asked: (prev_dialog) ? prev_dialog.bot_output: ''
+        }, cur_dialog
+      );
+      
+      // Store the feedback
+      storeFeedback(storage, feedback, function(stored) {
+        botReplyToFeedbackButton(bot, message, stored)
+      });
+    }  
+  }
+  
+  // Show the dialog to allow the user to provide written feedback
+  function showSuggestionDialog(bot, message) {    
+    let dialog = bot.createDialog('Leave your suggestions', message.callback_id, 'Submit')
+      .addSelect('What we need to improve','what',null,[{label:'Conversation flow',value:'flow'},{label:'Bot response',value:'response'}],{placeholder: 'Select One'})
+      .addTextarea('How can we improve','how','',{placeholder: 'Write your comment here'});
+
+    bot.replyWithDialog(message, dialog.asObject(), function(err, res) {
+      if (err) console.error('Dialog Error: %s', err);
+    });
+  }
+  
+  // Validate the interactive message is part of a current conversation
+  function validateAndRespondToAction(bot, storage, message, context) {
+    if (!context || !message.callback_id) return;
+      
+    // Parse callback_id to extract the conversation_id
+    let ids = message.callback_id.split(':', 2);
+    let callback_conv_id = ids[0];
+       
+    // Check message.actions and message.callback_id to see what action to take ...
+    if (callback_conv_id == context.conversation_id) {
+      
+      // Save the user feedback to database/filesystem
+      saveAndRespondToUserFeedback(bot, storage, message, context);
+      
+      // If the user wants to leave some feedback,
+      // then a dialog will pop up, and we will save
+      // her/his suggestions only when complete.
+      if (message.actions[0].value.match(/maybe/)) {
+        showSuggestionDialog(bot, message);
+      }
+    }
   }
   
   // Handle reset special case
@@ -187,7 +271,7 @@ module.exports = function (controller, middleware) {
       let reset_request = clone(message);
       reset_request.text = 'hello';
       middleware.sendToWatson(bot, reset_request, { }, function() {
-        bot_reply(bot, reset_request);
+        botConversationReply(bot, reset_request);
       });
     });
   });
@@ -200,90 +284,46 @@ module.exports = function (controller, middleware) {
         bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
       } else {
         debug('Watson: ' + JSON.stringify(message.watsonData));
-        bot_reply(bot, message);
+        botConversationReply(bot, message);
       }
     });
   });
   
-  // Receive an interactive message, and reply with a message that will replace the original
+  // Handle and interactive message response from buttons press
   controller.on('interactive_message_callback', function(bot, message) {
-    debug('Interactive: ' + JSON.stringify(message));
+    debug('Interactive: %j', message);
     
-    // Since event handler aren't processed by middleware and have no watsonData attribute,
-    // the context has to be extracted from the current user stored data.
+    // Since event handler aren't processed by middleware and have no watsonData 
+    // attribute, the context has to be extracted from the current user stored data.
     middleware.readContext(message.user, function(err, context) {
-      if (!context || !message.callback_id) return;
       
-      // parse callback_id to extract the conversation_id and the turn_id
-      let ids = message.callback_id.split(':', 2);
-      var callback_conv_id = ids[0];
-      var callback_turn_id = ids[1];
-    
-      // check message.actions and message.callback_id to see what action to take...
-      if (callback_conv_id == context.conversation_id) {
-        
-        // Get last stored dialog, if the dialog_turn and the conversation_id match,
-        // then, add the feedback score to the object before we save it to storage.
-        let cur_dialog = dialogs.find(function(dialog){
-          return (dialog.turn_id == callback_turn_id)
-            && (dialog.conversation_id == context.conversation_id);
-        })
-        
-        // We also need the previous dialog, as we want to
-        // extract what the bot has asked in the first place.
-        // This is not a mandatory requirement though.
-        let prev_dialog = dialogs.find(function(dialog){
-          return (dialog.turn_id == callback_turn_id - 1)
-            && (dialog.conversation_id == context.conversation_id);
-        })
-        
-        // Store given feedback for later revision
-        if (cur_dialog) {
-          //debug('Current: %s\nPrevious: %s',
-          //  JSON.stringify(cur_dialog), JSON.stringify(prev_dialog));
-          
-          let feedback = merge(
-            {
-              action: message.text,
-              bot_asked: (prev_dialog) ? prev_dialog.bot_output: ''
-            },
-            cur_dialog
-          );
-          
-          store_feedback(feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
-            // Update the original message, that is, the user will be 
-            // notified its contribution it has been taken into account.
-            bot.replyInteractive(message, {
-              text: message.original_message.text,
-              attachments : [{
-                fallback: '',
-                footer: stored
-                  ? 'Thanks for the feedback :clap:'
-                  : 'Some problem occurred when storing feedback :scream:',
-                ts: message.action_ts
-              }]
-            });
-          });
-          
-          if (process.env.STORE_DIALOGS_ON_WORKSPACE) {
-            store_dialog(controller, feedback, process.env.WATSON_WORKSPACE_ID, function(stored) {
-              // Update the original message, that is, the user will be 
-              // notified its contribution it has been taken into account.
-              bot.replyInteractive(message, {
-                text: message.original_message.text,
-                attachments : [{
-                  fallback: '',
-                  footer: stored
-                    ? 'Thanks for the feedback :clap:'
-                    : 'Some problem occurred when storing feedback :scream:',
-                  ts: message.action_ts
-                }]
-              });
-            });
-          }
-          
-        }
-      }
+      // Whether using database of filesystem
+      let storage = process.env.STORE_FEEDBACK_ON_FS
+        ? controller.storage : mongo;
+      
+      validateAndRespondToAction(bot, storage, message, context);
+    });
+  });
+  
+  // Handle a dialog submission the values from the form are in event.submission    
+  controller.on('dialog_submission', function(bot, message) {
+    middleware.readContext(message.user, function(err, context) {
+      let submission = message.submission;
+      let suggestion = {
+        what: submission.what,
+        how: submission.how
+      };
+      
+      // Pick the right storage system database of filesystem
+      let storage = process.env.STORE_FEEDBACK_ON_FS ? controller.storage : mongo;
+      
+      updateUserFeedback(bot, storage, message, suggestion, function(stored) {
+        // Call dialogOk() or else Slack will think this is an error
+        stored ? bot.dialogOk() : bot.dialogError({
+          "name":"suggestion",
+          "error":"An error occurred while saving your suggestions :fearful:"
+        });
+      });
     });
   });
 
