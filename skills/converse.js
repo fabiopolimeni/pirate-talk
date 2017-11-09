@@ -72,25 +72,25 @@ module.exports = function (controller, middleware) {
   
   // Main reply function, where all the logic to
   // interact with watson conversation is processed.
-  function botConversationReply(bot, msg) {
-    debug('Message: ' + JSON.stringify(msg));
+  function botConversationReply(bot, message) {
+    debug('Message: ' + JSON.stringify(message));
 
     var has_attachments = false;
-    if (msg.watsonData.output.action && msg.watsonData.output.action.attachments) {
+    if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
       has_attachments = true;
-      bot.reply(msg, {
-        attachments: msg.watsonData.output.action.attachments
+      bot.reply(message, {
+        attachments: message.watsonData.output.action.attachments
       });
     }
     
     // Construct the replay message
     var reply = {
-        text: msg.watsonData.output.text.join('\n'),
+        text: message.watsonData.output.text.join('\n'),
         attachments : []
     };
     
     // No feedback request if specifically removed
-    var no_feedback_request = (msg.watsonData.output.action && msg.watsonData.output.action.no_feedback);
+    var no_feedback_request = (message.watsonData.output.action && message.watsonData.output.action.no_feedback);
   
     // Request for a feedback, if this is not the first dialog round.
     if (!no_feedback_request) {
@@ -100,8 +100,8 @@ module.exports = function (controller, middleware) {
         // callback_id will be in the form of: conversation_id:turn_counter.
         // This is necessary because we can have answers that are given
         // out of order, it is not necessarily last a lifo process.
-        callback_id: msg.watsonData.context.conversation_id.concat(
-          ':', msg.watsonData.context.system.dialog_turn_counter),
+        callback_id: message.watsonData.context.conversation_id.concat(
+          ':', message.watsonData.context.system.dialog_turn_counter),
         mrkdwn_in: ['text'],
         text: '',
         actions: [{
@@ -133,23 +133,23 @@ module.exports = function (controller, middleware) {
     // if some of the messages are heavier than others, such as, when include media files (e.g. images).
     setTimeout(function() {
       debug('Reply: ' + JSON.stringify(reply));
-      bot.reply(msg, reply);
+      bot.reply(message, reply);
       
       // Retrieve the user, or make a new one if doesn't exist
-      let user = findUser(msg.user, true);
+      let user = findUser(message.user, true);
       let dialogs = user.history;
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
       // of dialog_turn_counter starts over again, hence, previous dialogs will be overwritten,
       // and this will prevent the array to grow indefinitely.
-      dialogs.splice(msg.watsonData.context.system.dialog_turn_counter, 1, {
-        user_input: msg.watsonData.input.text,
-        bot_output: msg.watsonData.output.text,
-        intents: msg.watsonData.intents,
-        entities: msg.watsonData.entities,
-        turn_id: msg.watsonData.context.system.dialog_turn_counter,
-        conversation_id: msg.watsonData.context.conversation_id,
-        user_id: msg.user,
+      dialogs.splice(message.watsonData.context.system.dialog_turn_counter, 1, {
+        user_input: message.watsonData.input.text,
+        bot_output: message.watsonData.output.text,
+        intents: message.watsonData.intents,
+        entities: message.watsonData.entities,
+        turn_id: message.watsonData.context.system.dialog_turn_counter,
+        conversation_id: message.watsonData.context.conversation_id,
+        user_id: message.user,
         date: (new Date()).toString()
       })
       
@@ -157,9 +157,9 @@ module.exports = function (controller, middleware) {
 
       // At this point we need to check if a jump is needed in order to continue with the conversation.
       // If a jump is needed, then we send Watson a continue placeholder to be consumed.
-      if (msg.watsonData.output.action && msg.watsonData.output.action.wait_before_continue) {
-        let continue_request = clone(msg);
-        continue_request.text = msg.watsonData.output.action.wait_before_continue;
+      if (message.watsonData.output.action && message.watsonData.output.action.wait_before_continue) {
+        let continue_request = clone(message);
+        continue_request.text = message.watsonData.output.action.wait_before_continue;
         debug('Continue: ' + JSON.stringify(continue_request));
         middleware.sendToWatson(bot, continue_request, { }, function() {
           botConversationReply(bot, continue_request);
