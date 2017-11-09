@@ -4,6 +4,7 @@ var clone = require('clone');
 var debug = require('debug')('pirate-talk:converse');
 var merge = require('deepmerge');
 var CJSON = require('circular-json');
+var sprintf = require('sprintf-js').sprintf;
 
 var mongo = require('botkit-storage-mongo')({
   mongoUri: process.env.MONGO_URI, tables: [
@@ -19,7 +20,7 @@ module.exports = function (controller, middleware) {
   
   // Look up for a user, if doesn't exist, and `create` 
   // is true, then, a new one will be created.
-  function findUser(user_id, create) {
+  function findUserOrMake(user_id, create, language_level) {
     // Find the user if exists
     let user = users.find(function(item) {
       return item.id && item.id == user_id;
@@ -28,6 +29,7 @@ module.exports = function (controller, middleware) {
     if (!user && create) {
       user = {
         id: user_id,
+        lang_lvl: language_level,
         history: []
       };
       
@@ -70,6 +72,13 @@ module.exports = function (controller, middleware) {
     });
   }
   
+  function sendReadyToContinueToken(bot, message, delta) {
+    let delta_context = merge({ user_input_received: true }, delta);
+    middleware.sendToWatson(bot, message, delta_context, function() {
+      botConversationReply(bot, message);
+    });
+  }
+  
   // Main reply function, where all the logic to
   // interact with watson conversation is processed.
   function botConversationReply(bot, message) {
@@ -85,8 +94,8 @@ module.exports = function (controller, middleware) {
     
     // Construct the replay message
     var reply = {
-        text: message.watsonData.output.text.join('\n'),
-        attachments : []
+      text: message.watsonData.output.text.join('\n'),
+      attachments : []
     };
     
     // No feedback request if specifically removed
@@ -136,7 +145,7 @@ module.exports = function (controller, middleware) {
       bot.reply(message, reply);
       
       // Retrieve the user, or make a new one if doesn't exist
-      let user = findUser(message.user, true);
+      let user = findUserOrMake(message.user, true);
       let dialogs = user.history;
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
@@ -155,30 +164,23 @@ module.exports = function (controller, middleware) {
       
       //debug('Dialogs: ' + JSON.stringify(dialogs, null, 2))
 
-      // At this point we need to check if a jump is needed in order to continue with the conversation.
-      // If a jump is needed, then we send Watson a continue placeholder to be consumed.
-      if (message.watsonData.output.action && message.watsonData.output.action.wait_before_continue) {
-        let continue_request = clone(message);
-        continue_request.text = message.watsonData.output.action.wait_before_continue;
-        debug('Continue: ' + JSON.stringify(continue_request));
-        middleware.sendToWatson(bot, continue_request, { }, function() {
-          botConversationReply(bot, continue_request);
-        });
+      // At this point we need to check whether a jump is needed to continue with the conversation.
+      // If it is needed, then upgrade Watson context and sand it back to continue to the next dialog.
+      if (message.watsonData.output.action && message.watsonData.output.action.wait_before_jump) {
+        sendReadyToContinueToken(bot, message, {});
       }
       
     }, (has_attachments) ? 1000 : 0 );
   }
   
-  function botReplyToFeedbackButton(bot, message, stored) {   
+  function botReplyToActionButton(bot, message, footer_msg) {   
     // Update the original message, that is, the user will be 
     // notified its contribution it has been taken into account.
     bot.replyInteractive(message, {
       text: message.original_message.text,
       attachments : [{
         fallback: '',
-        footer: stored
-          ? 'Thanks for the feedback :clap:'
-          : 'Some problem occurred when storing feedback :scream:',
+        footer: footer_msg,
         ts: message.action_ts
       }]
     });
@@ -190,7 +192,7 @@ module.exports = function (controller, middleware) {
     let callback_conv_id = ids[0];
     let callback_turn_id = ids[1];
     
-    let user = findUser(message.user, false);
+    let user = findUserOrMake(message.user, false);
     if (!user) return;
     
     let dialogs = user.history;
@@ -219,13 +221,17 @@ module.exports = function (controller, middleware) {
         id: callback_conv_id.concat(':', callback_turn_id),
         workspace: process.env.WATSON_WORKSPACE_ID,
         action: message.text,
+        level: context.language_level,
         bot_asked: (prev_dialog) ? prev_dialog.bot_output: ''
         }, cur_dialog
       );
       
       // Store the feedback
       storeFeedback(storage, feedback, function(stored) {
-        botReplyToFeedbackButton(bot, message, stored)
+        let footer = stored
+          ? 'Thanks for the feedback :clap:'
+          : 'Some problem occurred when storing feedback :scream:'
+        botReplyToActionButton(bot, message, footer)
       });
     }  
   }
@@ -233,7 +239,10 @@ module.exports = function (controller, middleware) {
   // Show the dialog to allow the user to provide written feedback
   function showSuggestionDialog(bot, message) {    
     let dialog = bot.createDialog('Leave your suggestions', message.callback_id, 'Submit')
-      .addSelect('What we need to improve','what',null,[{label:'Conversation flow',value:'flow'},{label:'Bot response',value:'response'}],{placeholder: 'Select One'})
+      .addSelect('What we need to improve','what',null,[
+        {label:'Conversation flow',value:'flow'},
+        {label:'Bot response',value:'response'}
+      ],{placeholder: 'Select One'})
       .addTextarea('How can we improve','how','',{placeholder: 'Write your comment here'});
 
     bot.replyWithDialog(message, dialog.asObject(), function(err, res) {
@@ -244,6 +253,15 @@ module.exports = function (controller, middleware) {
   // Validate the interactive message is part of a current conversation
   function validateAndRespondToAction(bot, storage, message, context) {
     if (!context || !message.callback_id) return;
+    
+    // Special case the button pressed was the language level
+    if (message.callback_id == 'pick_language_level') {
+      var languge_level = message.actions[0].name;
+      sendReadyToContinueToken(bot, message, {language_level: languge_level});
+      
+      let footer_string = sprintf("The story will be for a %s level", languge_level);
+      botReplyToActionButton(bot, message, footer_string);
+    }
       
     // Parse callback_id to extract the conversation_id
     let ids = message.callback_id.split(':', 2);
