@@ -6,10 +6,7 @@ module.exports = function (webserver, storage) {
     clientId: process.env.SLACK_CLIEND_ID,
     clientSecret: process.env.SLACK_CLIENT_SECRET,
     //debug: true,
-    //json_file_store: storage_path,
     storage: storage,
-    //require_delivery : true,
-    //send_via_rtm : true,
     stats_optout: true,
     scopes: ['bot']
   };
@@ -17,19 +14,19 @@ module.exports = function (webserver, storage) {
   var botkit = require('botkit');
   var controller = botkit.slackbot(configuration);
   var bot = controller.spawn({
+    require_delivery : true,
+    send_via_rtm : true,
     token: process.env.SLACK_TOKEN
   });
-  
   /*
-    bot.startRTM(function(err, bot, payload) {
-      if (err) {
-        console.log('Error while inoking bot.startRTM(): ' + err);
-        console.log('Bot: ' + JSON.stringify(bot));
-        console.log('Payload: ' + JSON.stringify(payload));
-      }
-    });
+  bot.startRTM(function(err, bot, payload) {
+    if (err) {
+      console.log('Error while invoking bot.startRTM(): ' + err);
+      console.log('Bot: ' + JSON.stringify(bot));
+      console.log('Payload: ' + JSON.stringify(payload));
+    }
+  });
   */
-  
   // Import all the pre-defined routes that are present in /components/routes
   var normalizedPath = require("path").join(__dirname, "routes");
   require("fs").readdirSync(normalizedPath).forEach(function (file) {
