@@ -7,24 +7,25 @@
     "start": "node app.js"
   },
   "dependencies": {
+    "assert": "^1.4.1",
     "body-parser": "^1.18.2",
-    "botkit": "^0.6.5",
+    "botkit": "^0.6.6",
+    "botkit-middleware-watson": "^1.6.1",
     "botkit-storage-mongo": "^1.0.7",
+    "circular-json": "^0.4.0",
+    "clone": "^2.1.1",
     "dashbot": "^9.4.0",
     "debug": "^3.1.0",
+    "deepmerge": "^2.0.1",
+    "dotenv": "^4.0.0",
     "express": "^4.16.2",
+    "mocha": "^4.0.1",
+    "nock": "^9.1.0",
     "querystring": "^0.2.0",
     "request": "^2.83.0",
-    "dotenv": "^4.0.0",
-    "botkit-middleware-watson": "^1.5.0",
-    "wordfilter": "^0.2.6",
-    "assert": "^1.4.1",
-    "clone": "^2.1.1",
-    "mocha": "^4.0.1",
-    "nock": "^9.0.27",
-    "sinon": "^4.1.1",
-    "deepmerge": "^2.0.1",
-    "circular-json": "^0.4.0"
+    "sinon": "^4.1.2",
+    "sprintf-js": "^1.1.1",
+    "wordfilter": "^0.2.6"
   },
   "engines": {
     "node": "8.x"
