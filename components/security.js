@@ -30,7 +30,7 @@ module.exports = function verifyFacebookSignatureHeader(req, res, buf) {
     var elements = signature.split('sha1=');
     var facebookSignature = elements[1];
 
-    var expectedSignature = crypto.createHmac('sha1', process.env.FB_APP_SECRET)
+    var expectedSignature = crypto.createHmac('sha1', process.env.FACEBOOK_APP_SECRET)
       .update(buf)
       .digest('hex');
 

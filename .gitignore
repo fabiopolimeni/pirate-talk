@@ -62,6 +62,7 @@ typings/
 .vscode
 .data
 .glitch-assets
+ngrock
 node_modules
 components/routes/_*
 

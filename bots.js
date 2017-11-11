@@ -1,48 +1,22 @@
 require('dotenv').load();
 
 module.exports = function (webserver, middleware) {
+  
+  var botkit = require('botkit');
   var storage = require('./components/storage')({path: __dirname + '/.data/db/'});
 
   if (process.env.USE_SLACK) {
-    var Slack = require('./components/slack/slack_bot')(webserver, storage);
+    var Slack = require('./components/slack/slack_bot')(webserver, botkit, storage, middleware);
     //Slack.controller.middleware.receive.use(middleware.receive);
     Slack.controller.createWebhookEndpoints(webserver);
-
-    // Load all the handled skills
-    var normalizedPath = require("path").join(__dirname, "./skills");
-    require("fs").readdirSync(normalizedPath).forEach(function (file) {
-      require("./skills/" + file)(Slack.controller, middleware);
-    });
-
     console.log('Slack bot is live');
   }
 
   if (process.env.USE_FACEBOOK) {
-    var Facebook = require('./components/facebook/facebook_bot')(webserver, storage);
+    var Facebook = require('./components/facebook/facebook_bot')(webserver, botkit, storage);
     //Facebook.controller.middleware.receive.use(middleware.receive);
     Facebook.controller.createWebhookEndpoints(webserver, Facebook.bot);
-
-    // Load all the handled skills
-    var normalizedPath = require("path").join(__dirname, "./skills");
-    require("fs").readdirSync(normalizedPath).forEach(function (file) {
-      require("./skills/" + file)(Facebook.controller, middleware);
-    });
-
     console.log('Facebook bot is live');
-  }
-
-  if (process.env.USE_TWILIO) {
-    var Twilio = require('./components/twilio/twilio_bot')(webserver, storage);
-    //Twilio.controller.middleware.receive.use(middleware.receive);
-    Twilio.controller.createWebhookEndpoints(webserver, Twilio.bot);
-
-    // Load all the handled skills
-    var normalizedPath = require("path").join(__dirname, "./skills");
-    require("fs").readdirSync(normalizedPath).forEach(function (file) {
-      require("./skills/" + file)(Twilio.controller, middleware);
-    });
-
-    console.log('Twilio bot is live');
   }
 
 };

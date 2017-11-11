@@ -1,6 +1,6 @@
 var debug = require('debug')('pirate-talk:slackbot')
 
-module.exports = function (webserver, storage) {
+module.exports = function (webserver, botkit, storage, middleware) {
 
   var configuration = {
     clientId: process.env.SLACK_CLIEND_ID,
@@ -11,7 +11,6 @@ module.exports = function (webserver, storage) {
     scopes: ['bot']
   };
 
-  var botkit = require('botkit');
   var controller = botkit.slackbot(configuration);
   var bot = controller.spawn({
     require_delivery : true,
@@ -40,6 +39,12 @@ module.exports = function (webserver, storage) {
 
   // Send an onboarding message when a new team joins
   require('./onboarding.js')(controller);
+
+  // Load slack specific skills
+  var normalizedPath = require("path").join(__dirname, "./skills");
+  require("fs").readdirSync(normalizedPath).forEach(function (file) {
+    require("./skills/" + file)(controller, middleware);
+  });
 
   return {
     controller: controller,
