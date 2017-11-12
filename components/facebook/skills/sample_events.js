@@ -1,9 +1,12 @@
+var debug = require('debug')('pirate-talk:events');
+
 module.exports = function (controller) {
 
   // look for sticker, image and audio attachments
   // capture them, and fire special events
   controller.on('message_received', function (bot, message) {
 
+    debug('"received": %s', JSON.stringify(message))
     if (!message.text) {
       if (message.sticker_id) {
         controller.trigger('sticker_received', [bot, message]);
@@ -15,6 +18,10 @@ module.exports = function (controller) {
     }
 
   });
+
+  // controller.on('message_delivered', function (bot, message) {
+  //   debug('"delivered": %s', JSON.stringify(message))
+  // });
 
   controller.on('sticker_received', function (bot, message) {
     bot.reply(message, 'Cool sticker.');

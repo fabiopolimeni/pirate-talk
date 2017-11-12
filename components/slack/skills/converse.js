@@ -114,10 +114,10 @@ module.exports = function (controller, middleware) {
     };
     
     // No feedback request if specifically removed
-    var no_feedback_request = (message.watsonData.output.action && message.watsonData.output.action.no_feedback);
+    var feedback_request = !(message.watsonData.output.action && message.watsonData.output.action.no_feedback);
   
-    // Request for a feedback, if this is not the first dialog round.
-    if (!no_feedback_request) {
+    // Request for a feedback.
+    if (feedback_request) {
       
       // Reply with feedback request, that is, adding action buttons
       reply.attachments.push({
@@ -135,12 +135,6 @@ module.exports = function (controller, middleware) {
           "style": "primary",
           "type": "button"
         }, {
-          "name": "no",
-          "text": "Wrong :thumbsdown:",
-          "value": "bad",
-          "style": "danger",
-          "type": "button"
-        }, {
           "name": "soso",
           "text": "Improve :raised_hand:",
           "value": "maybe",
@@ -155,7 +149,7 @@ module.exports = function (controller, middleware) {
     // a message has been delivered and visible or not.
     // This is needed in order to avoid a message to be received out of order, as it will happen
     // if some of the messages are heavier than others, such as, when include media files (e.g. images).
-    bot.startTyping(message);
+    bot.startTyping(message, function() { });
     setTimeout(function() {
       debug('Reply: ' + JSON.stringify(reply));
       bot.reply(message, reply);
@@ -186,6 +180,7 @@ module.exports = function (controller, middleware) {
         sendReadyToContinueToken(bot, message, {});
       }
       
+      bot.stopTyping();
     }, (has_attachments) ? 1000 : 0 );
   }
   

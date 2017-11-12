@@ -13,12 +13,12 @@ module.exports = function(){
 
     // Customize Watson Middleware object's before and after callbacks.
     middleware.before = function(message, payload, callback) {
-        debug('Watson before: %j', payload);
+        //debug('"watson before": %j', payload);
         callback(null, payload);
     }
 
     middleware.after = function(message, response, callback) {
-        debug('Watson after: %j', response);
+        //debug('"watson after": %j', response);
         callback(null, response);
     }
 
