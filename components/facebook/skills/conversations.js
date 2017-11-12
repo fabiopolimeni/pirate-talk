@@ -67,7 +67,7 @@ module.exports = function (controller, middleware) {
   function botConversationReply(bot, message) {
     let debug_message = clone(message);
     debug_message.watsonData.context.system = null;
-    debug('"message": %s', CJSON.stringify(debug_message, null, 2));
+    //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
 
     if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
       // Because attachments are received in Slack way,
@@ -100,9 +100,7 @@ module.exports = function (controller, middleware) {
         forward_message: pending_message
       };
 
-      debug('"attachment": %s', CJSON.stringify(attachment));
       bot.reply(message, {attachment: attachment}, (err, sent_message) => {
-        debug('"sent": %s', CJSON.stringify(sent_message));
         if (!sent_message) return;
 
         // Because messages with attachments can take time to be delivered,
@@ -119,13 +117,14 @@ module.exports = function (controller, middleware) {
     // proceed to respond with a simple text message.
     else {
       // Construct the replay message
-      var reply_message = {
+      let reply_message = {
         text: message.watsonData.output.text.join('\n')
       };
 
       // Send reply to the user, text can't be empty
-      if (reply_message.text)
+      if (reply_message.text) {
         bot.reply(message, reply_message);
+      }
       
       // Retrieve the user, or make a new one if doesn't exist
       let user = database.findUserOrMake(message.user, true);
@@ -159,9 +158,50 @@ module.exports = function (controller, middleware) {
     }
   }
 
+  controller.on('message_received', function (bot, message) {
+    console.log('"received": %s', JSON.stringify(message))
+
+
+  });
+
+  controller.on('message_delivered', function (bot, message) {
+    //debug('"delivered": %s', JSON.stringify(message))
+
+    // message_id can be not ready yet
+    var message_id_ready = setInterval(() => {
+      let user = database.findUserOrMake(message.sender.id)
+      if (user && user.waiting_for_message
+         && user.waiting_for_message.message_id) {
+
+        var user_mid = user.waiting_for_message.message_id;
+        // The message_delivered event can responde to multiple messages,
+        // thereofre we need to search for the matching one in the message list.
+        let message_id = message.delivery.mids.find((mid) => {
+          return mid == user_mid;
+        });
+
+        debug('"mid": %s', message_id);
+
+        // We found a matching message
+        if (message_id) {
+          // Forward the pending message
+          let forward_message = clone(user.waiting_for_message.forward_message);
+          user.waiting_for_message = null;
+          botConversationReply(bot, forward_message);
+        }
+
+        // There is a message pending, we stop this function
+        // to be exectued in a time loop, even the pending
+        // message is not the one we were looking for.
+        clearInterval(message_id_ready);
+      }
+    }, 500);
+  });
+
   // Handle button postbacks
   controller.hears(['.*'], 'facebook_postback', function (bot, message) {
-    debug('"language": %s', JSON.stringify(message));
+    debug('"postback": %s', JSON.stringify(message));
+
     // Since event handler aren't processed by middleware and have no watsonData 
     // attribute, the context has to be extracted from the current user stored data.
     middleware.readContext(message.user, function(err, context) {
@@ -206,44 +246,6 @@ module.exports = function (controller, middleware) {
         bot.stopTyping(message, function(){});
       }
     });
-  });
-
-  controller.on('message_delivered', function (bot, delivered_message) {
-    //debug('"delivered": %s', JSON.stringify(delivered_message))
-    //debug('"users": %s', CJSON.stringify(database.users, null, 2))
-
-    // Lookup for messages waiting for delivering
-    var user = database.findUserOrMake(delivered_message.sender.id)
-    if (user && user.waiting_for_message) {
-
-      // message_id can be not ready yet
-      var message_id_ready = setInterval(() => {
-        if (user.waiting_for_message.message_id) {
-          var user_mid = user.waiting_for_message.message_id;
-
-          // The message_delivered event can responde to multiple messages,
-          // thereofre we need to search for the matching one in the message list.
-          let message_id = delivered_message.delivery.mids.find((mid) => {
-            return mid == user_mid;
-          });
-
-          debug('"mid": %s', message_id);
-
-          // We found a matching message
-          if (message_id) {
-            // Forward the pending message
-            let forward_message = clone(user.waiting_for_message.forward_message);
-            user.waiting_for_message = null;
-            botConversationReply(bot, forward_message);
-          }
-
-          // There is a message pending, we stop this function
-          // to be exectued in a time loop, even the pending
-          // message is not the one we were looking for.
-          clearInterval(message_id_ready);
-        }
-      }, 500);
-    }
   });
 
 }
