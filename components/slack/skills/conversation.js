@@ -1,7 +1,7 @@
 require('dotenv').load()
 
 var clone = require('clone');
-var debug = require('debug')('pirate-talk:converse');
+var debug = require('debug')('pirate-talk:slack-conversation');
 var merge = require('deepmerge');
 var CJSON = require('circular-json');
 var sprintf = require('sprintf-js').sprintf;
@@ -187,7 +187,7 @@ module.exports = function (controller, middleware) {
       how: submission.how
     };
     
-    console.log('"submission": %s', CJSON.stringify(message, null, 2))
+    debug('"submission": %s', CJSON.stringify(message, null, 2))
     let storage = database.getStorageDriver();
     database.updateFeedback(bot, storage, message.callback_id, suggestion, function(stored) {
       // Call dialogOk() or else Slack will think this is an error

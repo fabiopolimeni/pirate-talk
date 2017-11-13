@@ -1,7 +1,7 @@
 require('dotenv').load()
 
 var clone = require('clone');
-var debug = require('debug')('pirate-talk:conversation');
+var debug = require('debug')('pirate-talk:facebook-conversation');
 var merge = require('deepmerge');
 var CJSON = require('circular-json');
 var sprintf = require('sprintf-js').sprintf;
