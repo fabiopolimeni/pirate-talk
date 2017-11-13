@@ -18,7 +18,7 @@ module.exports = function (controller, middleware) {
   var _users = [];
   
   // Look up for a user, if doesn't exist, and
-  // `create` is true, then, instantiate a new one.
+  // create is true, then, instantiate a new one.
   function _findUserOrMake(id, create) {
     // Find the user if exists
     let user = _users.find(function(item) {
@@ -62,7 +62,7 @@ module.exports = function (controller, middleware) {
       feedback.suggestion = suggestion;
       
       // Store the feeback back
-      storeFeedback(storage, feedback, null);
+      _storeFeedback(storage, feedback, null);
       if (callback && typeof callback === 'function') {
         callback(err);
       }

@@ -6,15 +6,9 @@ var merge = require('deepmerge');
 var CJSON = require('circular-json');
 var sprintf = require('sprintf-js').sprintf;
 
-var mongo = require('botkit-storage-mongo')({
-  mongoUri: process.env.MONGO_URI, tables: [
-    'workspaces', 'feedbacks', 'surveys'
-  ]
-});
-
 module.exports = function (controller, middleware) {
-  
-  // Database hanlder
+
+  // Database handler
   var database = require('../../database')(controller, middleware);
 
   // Convert actions to buttons
@@ -23,8 +17,7 @@ module.exports = function (controller, middleware) {
 
     if (action.type && action.type == 'button') {
       if (action.name) {
-        button.payload = sprintf('%s:%s',
-        callback_id, action.name);
+        button.payload = sprintf('%s:%s', callback_id, action.name);
       }
 
       if (action.text) {
@@ -44,7 +37,7 @@ module.exports = function (controller, middleware) {
     if (attachment.image_url) {
       element.image_url = attachment.image_url;
     }
-    
+
     element.title = (attachment.title) ?
       attachment.title : attachment.fallback;
 
@@ -100,7 +93,9 @@ module.exports = function (controller, middleware) {
         forward_message: pending_message
       };
 
-      bot.reply(message, {attachment: attachment}, (err, sent_message) => {
+      bot.reply(message, {
+        attachment: attachment
+      }, (err, sent_message) => {
         if (!sent_message) return;
 
         // Because messages with attachments can take time to be delivered,
@@ -125,11 +120,11 @@ module.exports = function (controller, middleware) {
       if (reply_message.text) {
         bot.reply(message, reply_message);
       }
-      
+
       // Retrieve the user, or make a new one if doesn't exist
       let user = database.findUserOrMake(message.user, true);
       let dialogs = user.history;
-      
+
       // Add a dialog info to the list of dialogs.
       // When the conversation restarts, the index
       // of dialog_turn_counter starts over again,
@@ -145,7 +140,7 @@ module.exports = function (controller, middleware) {
         user_id: message.user,
         date: (new Date()).toString()
       })
-      
+
       //debug('"dialogs": %s', CJSON.stringify(dialogs, null, 2))
 
       // At this point we need to check whether a jump is needed to continue with the conversation.
@@ -158,10 +153,52 @@ module.exports = function (controller, middleware) {
     }
   }
 
-  controller.on('message_received', function (bot, message) {
-    console.log('"received": %s', JSON.stringify(message))
+  // Handle button postbacks
+  controller.hears(['.*'], 'facebook_postback', function (bot, message) {
+    debug('"postback": %s', JSON.stringify(message));
 
+    // Since events handler aren't processed by middleware and have no watsonData 
+    // attribute, the context has to be extracted from the current user stored data.
+    middleware.readContext(message.user, function (err, context) {
+      if (!context) return;
 
+      let postback_ids = message.text.split(':');
+      if (postback_ids[0] == 'pick_language_level') {
+        let level = postback_ids[1];
+        database.sendContinueToken(bot, message, {
+          language_level: level
+        }, () => {
+          botConversationReply(bot, message);
+        });
+      } else if (postback_ids[0] == 'survey') {
+        // TODO: ...
+      }
+    });
+  });
+
+  // Handle reset special case
+  controller.hears(['reset'], 'message_received', function (bot, message) {
+    middleware.updateContext(message.user, {}, function (context) {
+      let reset_request = clone(message);
+      reset_request.text = 'reset';
+      middleware.sendToWatson(bot, reset_request, {}, function () {
+        botConversationReply(bot, reset_request);
+      });
+    });
+  });
+
+  // Handle common cases with  Watson conversation
+  controller.hears(['.*'], 'message_received', function (bot, message) {
+    middleware.interpret(bot, message, function () {
+      if (message.watsonError) {
+        console.error(message.watsonError);
+        bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
+      } else {
+        bot.startTyping(message, function () {});
+        botConversationReply(bot, message);
+        bot.stopTyping(message, function () {});
+      }
+    });
   });
 
   controller.on('message_delivered', function (bot, message) {
@@ -170,12 +207,12 @@ module.exports = function (controller, middleware) {
     // message_id can be not ready yet
     var message_id_ready = setInterval(() => {
       let user = database.findUserOrMake(message.sender.id)
-      if (user && user.waiting_for_message
-         && user.waiting_for_message.message_id) {
+      if (user && user.waiting_for_message &&
+        user.waiting_for_message.message_id) {
 
         var user_mid = user.waiting_for_message.message_id;
-        // The message_delivered event can responde to multiple messages,
-        // thereofre we need to search for the matching one in the message list.
+        // The message_delivered event can respond to multiple messages,
+        // therefore we need to search for the matching one in the message list.
         let message_id = message.delivery.mids.find((mid) => {
           return mid == user_mid;
         });
@@ -191,61 +228,40 @@ module.exports = function (controller, middleware) {
         }
 
         // There is a message pending, we stop this function
-        // to be exectued in a time loop, even the pending
+        // to be executed in a time loop, even the pending
         // message is not the one we were looking for.
         clearInterval(message_id_ready);
       }
     }, 500);
   });
 
-  // Handle button postbacks
-  controller.hears(['.*'], 'facebook_postback', function (bot, message) {
-    debug('"postback": %s', JSON.stringify(message));
+  // look for sticker, image and audio attachments
+  // capture them, and fire special events
+  controller.on('message_received', function (bot, message) {
 
-    // Since event handler aren't processed by middleware and have no watsonData 
-    // attribute, the context has to be extracted from the current user stored data.
-    middleware.readContext(message.user, function(err, context) {
-      if (!context) return;
-    
-      let postback_ids = message.text.split(':');
-      if (postback_ids[0] == 'pick_language_level') {
-        let level = postback_ids[1];
-        database.sendContinueToken(bot, message, {
-          language_level: level
-        }, () => {
-          botConversationReply(bot, message);
-        });
+    debug('"received": %s', JSON.stringify(message))
+    if (!message.text) {
+      if (message.sticker_id) {
+        controller.trigger('sticker_received', [bot, message]);
+        return false;
+      } else if (message.attachments && message.attachments[0]) {
+        controller.trigger(message.attachments[0].type + '_received', [bot, message]);
+        return false;
       }
-      else if (postback_ids[0] == 'survey') {
-        // TODO: ...
-      }
-    });
+    }
+
   });
 
-  // Handle reset special case
-  controller.hears(['reset'], 'message_received', function (bot, message) {
-    middleware.updateContext(message.user, {}, function (context) {
-      let reset_request = clone(message);
-      reset_request.text = 'reset';
-      middleware.sendToWatson(bot, reset_request, { }, function() {
-        botConversationReply(bot, reset_request);
-      });
-    });
+  controller.on('sticker_received', function (bot, message) {
+    bot.reply(message, 'Cool sticker.');
   });
-   
-  // Handle common cases with  Watson conversation
-  controller.hears(['.*'], 'message_received', function (bot, message) {
-    middleware.interpret(bot, message, function () {
-      if (message.watsonError) {
-        console.error(message.watsonError);
-        bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
-      }
-      else {
-        bot.startTyping(message, function(){});
-        botConversationReply(bot, message);
-        bot.stopTyping(message, function(){});
-      }
-    });
+
+  controller.on('image_received', function (bot, message) {
+    bot.reply(message, 'Nice picture.');
+  });
+
+  controller.on('audio_received', function (bot, message) {
+    bot.reply(message, 'I heard that!!');
   });
 
 }

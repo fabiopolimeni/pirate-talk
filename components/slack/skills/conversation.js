@@ -6,93 +6,10 @@ var merge = require('deepmerge');
 var CJSON = require('circular-json');
 var sprintf = require('sprintf-js').sprintf;
 
-var mongo = require('botkit-storage-mongo')({
-  mongoUri: process.env.MONGO_URI, tables: [
-    'workspaces', 'feedbacks', 'surveys'
-  ]
-});
-
 module.exports = function (controller, middleware) {
-  
-  // Keep an array of users in order to reduce concurrency
-  // as much as possible when storing history information.
-  var users = [];
-  
-  // Look up for a user, if doesn't exist, and `create` 
-  // is true, then, a new one will be created.
-  function findUserOrMake(user_id, create) {
-    // Find the user if exists
-    let user = users.find(function(item) {
-      return item.id && item.id == user_id;
-    });
-    
-    if (!user && create) {
-      user = {
-        id: user_id,
-        latest_button_message: null,
-        history: []
-      };
-      
-      users.push(user);
-    }
-    
-    return user;
-  }
-  
-  function storeFeedback(storage, feedback, callback) {
-    debug('Saving feedback: %s', CJSON.stringify(feedback));
-    storage.feedbacks.save(feedback, function(err, id) {
-      if (err) {
-        console.error('Could not save feedback %s', feedback.id);
-        console.error('Error: %s', err);
-      }
-      
-      if (callback && typeof callback === 'function') {
-        debug('storeFeedback.cb: ' + callback);
-        callback(!(err));
-      }
-    });
-  }
-  
-  function updateUserFeedback(bot, storage, message, suggestion, callback) {
-    // Retrieve the feedback from the database/filesystem
-    storage.feedbacks.get(message.callback_id, function(err, feedback) {
-      if (err) console.warn('Warn: could not retrieve feedback %s', message.callback_id);
-      
-      // Incorporate user's suggestions
-      feedback.suggestion = suggestion;
-      
-      // Store the feeback back
-      storeFeedback(storage, feedback, null);
-      
-      if (callback && typeof callback === 'function') {
-        debug('updateUserFeedback.cb: ' + callback);
-        callback(!(err));
-      }
-    });
-  }
-  
-  function storeSurvey(bot, storage, message, survey, callback) {
-    console.log('"survey": %s', CJSON.stringify(survey));    
-    storage.surveys.save(survey, function(err, id) {
-      if (err) {
-        console.error('Could not save survey %s', survey.id);
-        console.error('Error: %s', err);
-      }
-      
-      if (callback && typeof callback === 'function') {
-        debug('storeSurvey.cb: ' + callback);
-        callback(!(err));
-      }
-    });
-  }
-  
-  function sendReadyToContinueToken(bot, message, delta) {
-    let delta_context = merge({ user_input_received: true }, delta);
-    middleware.sendToWatson(bot, message, delta_context, function() {
-      botConversationReply(bot, message);
-    });
-  }
+
+  // Database handler
+  var database = require('../../database')(controller, middleware);
   
   // Main reply function, where all the logic to
   // interact with watson conversation is processed.
@@ -145,17 +62,16 @@ module.exports = function (controller, middleware) {
     }
     
     // If we have attachments to process, wait for 0.5 sec, before sending the next message.
-    // Unfortunately, it doesn't seem there is a more elegant way, in slack, to know whether
+    // Unfortunately, it doesn't seem there is a more elegant way, in Slack, to know whether
     // a message has been delivered and visible or not.
     // This is needed in order to avoid a message to be received out of order, as it will happen
     // if some of the messages are heavier than others, such as, when include media files (e.g. images).
-    bot.startTyping(message, function() { });
     setTimeout(function() {
       debug('Reply: ' + JSON.stringify(reply));
       bot.reply(message, reply);
       
       // Retrieve the user, or make a new one if doesn't exist
-      let user = findUserOrMake(message.user, true);
+      let user = database.findUserOrMake(message.user, true);
       let dialogs = user.history;
       
       // Add a dialog info to the list of dialogs. When the conversation restarts, the index
@@ -177,10 +93,11 @@ module.exports = function (controller, middleware) {
       // At this point we need to check whether a jump is needed to continue with the conversation.
       // If it is needed, then upgrade Watson context and sand it back to continue to the next dialog.
       if (message.watsonData.output.action && message.watsonData.output.action.wait_before_jump) {
-        sendReadyToContinueToken(bot, message, {});
+        database.sendContinueToken(bot, message, {}, () => {
+          botConversationReply(bot, message);
+        });
       }
-      
-      bot.stopTyping();
+
     }, (has_attachments) ? 1000 : 0 );
   }
   
@@ -203,7 +120,7 @@ module.exports = function (controller, middleware) {
     let callback_conv_id = ids[0];
     let callback_turn_id = ids[1];
     
-    let user = findUserOrMake(message.user, false);
+    let user = database.findUserOrMake(message.user, false);
     if (!user) return;
     
     let dialogs = user.history;
@@ -239,7 +156,7 @@ module.exports = function (controller, middleware) {
       );
       
       // Store the feedback
-      storeFeedback(storage, feedback, function(stored) {
+      database.storeFeedback(storage, feedback, function(stored) {
         let footer = stored
           ? 'Thanks for the feedback :clap:'
           : 'Some problem occurred when storing feedback :scream:'
@@ -271,13 +188,12 @@ module.exports = function (controller, middleware) {
     };
     
     // Pick the right storage system database of filesystem
-    let storage = process.env.STORE_FEEDBACK_ON_FS ? controller.storage : mongo;
-     
-    updateUserFeedback(bot, storage, message, suggestion, function(stored) {
+    let storage = database.getStorageDriver();
+    database.updateFeedback(bot, storage, message, suggestion, function(stored) {
       // Call dialogOk() or else Slack will think this is an error
       stored ? bot.dialogOk() : bot.dialogError({
-        "name":"suggestion",
-        "error":"An error occurred while saving user's suggestions :fearful:"
+        name: 'suggestion',
+        error:"An error occurred while saving user's suggestions :fearful:"
       });
     });
   }
@@ -295,7 +211,7 @@ module.exports = function (controller, middleware) {
   }
   
   function handleSurveyDialogSubmission(bot, message, context) {
-    console.log('"context": ' + CJSON.stringify(context))
+    debug('"context": ' + CJSON.stringify(context))
     let submission = message.submission;
     let survey = {
       comment: submission.comment,
@@ -305,20 +221,18 @@ module.exports = function (controller, middleware) {
     }
     
     // Pick the right storage system database of filesystem
-    let storage = process.env.STORE_FEEDBACK_ON_FS ? controller.storage : mongo;
-
-    storeSurvey(bot, storage, message, survey, function(stored) {
+    let storage = database.getStorageDriver();
+    database.storeSurvey(bot, storage, message, survey, function(stored) {
       // Call dialogOk() or else Slack will think this is an error
-      let err_msg = 'Ops, an error occurred while saving user\'s comment :fearful:';
       stored ? bot.dialogOk() : bot.dialogError({
-        "name": "comment",
-        "error": err_msg
+        name: 'comment',
+        error: "Ops, an error occurred while saving user\'s comment :fearful:"
       });
       
       // We know we have executed this dialog by pressing a button, then,
       // we should have a valid user.latest_button_message to which we
       // should be able to answer.
-      let user = findUserOrMake(message.user, false);
+      let user = database.findUserOrMake(message.user, false);
       if (user && user.latest_button_message) {
         let ok_msg = 'Thank you for your feedback! :hugging_face:'
         botReplyToActionButton(bot, user.latest_button_message,
@@ -370,14 +284,17 @@ module.exports = function (controller, middleware) {
         bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
       } else {
         debug('"watson": ' + JSON.stringify(message.watsonData));
+        
+        bot.startTyping(message, function() { });
         botConversationReply(bot, message);
+        bot.stopTyping(message, function() { });
       }
     });
   });
   
   // Handle and interactive message response from buttons press
   controller.on('interactive_message_callback', function(bot, message) {
-    console.log('"interactive": %s', CJSON.stringify(message));
+    debug('"interactive": %s', CJSON.stringify(message));
     if (!message.callback_id) return;
     
     // Since event handler aren't processed by middleware and have no watsonData 
@@ -385,22 +302,18 @@ module.exports = function (controller, middleware) {
     middleware.readContext(message.user, function(err, context) {
       if (!context) return;
       
-      // Whether using database of filesystem
-      let storage = process.env.STORE_FEEDBACK_ON_FS
-        ? controller.storage : mongo;
-      
-      // Store this message, that is, later we'll be able to responde to it
-      let user = findUserOrMake(message.user, false);
+      // Store this message, that is, later we'll be able to respond to it
+      let user = database.findUserOrMake(message.user, false);
       if (user) {
         user.latest_button_message = message;
       }
       
       // Language button
       if (message.callback_id == 'pick_language_level') {
-        var languge_level = message.actions[0].name;
-        sendReadyToContinueToken(bot, message, {language_level: languge_level});
+        let level = message.actions[0].name;
+        database.sendContinueToken(bot, message, {language_level: level});
 
-        let footer_string = sprintf("The story will be for a %s level", languge_level);
+        let footer_string = sprintf("The story will be for a %s level", level);
         botReplyToActionButton(bot, message, footer_string);
       }
       // Survey button
@@ -409,6 +322,7 @@ module.exports = function (controller, middleware) {
       }
       // Feedback button
       else {
+        let storage = database.getStorageDriver();
         validateAndRespondToUserFeedback(bot, storage, message, context);
       }
     });
@@ -416,7 +330,7 @@ module.exports = function (controller, middleware) {
   
   // Handle a dialog submission the values from the form are in event.submission    
   controller.on('dialog_submission', function(bot, message) {
-    console.log('"submission": ' + CJSON.stringify(message))
+    debug('"submission": ' + CJSON.stringify(message))
     if (!message.callback_id) return;
     
     middleware.readContext(message.user, function(err, context) {

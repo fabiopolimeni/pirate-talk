@@ -3,7 +3,7 @@ var debug = require('debug')('pirate-talk:slackbot')
 module.exports = function (webserver, botkit, storage, middleware) {
 
   var configuration = {
-    clientId: process.env.SLACK_CLIEND_ID,
+    clientId: process.env.SLACK_CLIENT_ID,
     clientSecret: process.env.SLACK_CLIENT_SECRET,
     //debug: true,
     storage: storage,
