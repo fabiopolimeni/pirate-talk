@@ -40,7 +40,7 @@ module.exports = function (controller, middleware) {
   }
   
   function _storeFeedback(storage, feedback, callback) {
-    debug('Saving feedback: %s', CJSON.stringify(feedback));
+    debug('"feedback": %s', CJSON.stringify(feedback));
     storage.feedbacks.save(feedback, function(err, id) {
       if (err) {
         console.error('Could not save feedback %s', feedback.id);
@@ -48,29 +48,33 @@ module.exports = function (controller, middleware) {
       }
       
       if (callback && typeof callback === 'function') {
-        callback(err);
+        callback(err ? false : true);
       }
     });
   }
   
   function _updateUserFeedback(bot, storage, id, suggestion, callback) {
+    debug('"suggestion": %s', CJSON.stringify(suggestion));
+    
     // Retrieve the feedback from the database/filesystem
     storage.feedbacks.get(id, function(err, feedback) {
-      if (err) console.warn('Warn: could not retrieve feedback %s', id);
+      if (err || !feedback) {
+        console.warn('Warn: could not retrieve feedback %s', id);
+        console.error('Error: %s', err);
+      }
+      
+      if (!feedback) return;
       
       // Incorporate user's suggestions
       feedback.suggestion = suggestion;
       
-      // Store the feeback back
-      _storeFeedback(storage, feedback, null);
-      if (callback && typeof callback === 'function') {
-        callback(err);
-      }
+      // Store the feedback back
+      _storeFeedback(storage, feedback, callback);
     });
   }
   
   function _storeSurvey(bot, storage, survey, callback) {
-    console.log('"survey": %s', CJSON.stringify(survey));    
+    debug('"survey": %s', CJSON.stringify(survey));    
     storage.surveys.save(survey, function(err, id) {
       if (err) {
         console.error('Could not save survey %s', survey.id);
@@ -78,7 +82,7 @@ module.exports = function (controller, middleware) {
       }
       
       if (callback && typeof callback === 'function') {
-        callback(err);
+        callback(err ? false : true);
       }
     });
   }

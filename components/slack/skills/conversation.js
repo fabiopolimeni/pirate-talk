@@ -84,7 +84,7 @@ module.exports = function (controller, middleware) {
         entities: message.watsonData.entities,
         turn_id: message.watsonData.context.system.dialog_turn_counter,
         conversation_id: message.watsonData.context.conversation_id,
-        user_id: message.user,
+        //user_id: message.user,
         date: (new Date()).toString()
       })
       
@@ -187,9 +187,9 @@ module.exports = function (controller, middleware) {
       how: submission.how
     };
     
-    // Pick the right storage system database of filesystem
+    console.log('"submission": %s', CJSON.stringify(message, null, 2))
     let storage = database.getStorageDriver();
-    database.updateFeedback(bot, storage, message, suggestion, function(stored) {
+    database.updateFeedback(bot, storage, message.callback_id, suggestion, function(stored) {
       // Call dialogOk() or else Slack will think this is an error
       stored ? bot.dialogOk() : bot.dialogError({
         name: 'suggestion',
@@ -214,6 +214,7 @@ module.exports = function (controller, middleware) {
     debug('"context": ' + CJSON.stringify(context))
     let submission = message.submission;
     let survey = {
+      id: context.conversation_id,
       comment: submission.comment,
       level: context.language_level,
       version: context.version,
@@ -222,11 +223,13 @@ module.exports = function (controller, middleware) {
     
     // Pick the right storage system database of filesystem
     let storage = database.getStorageDriver();
-    database.storeSurvey(bot, storage, message, survey, function(stored) {
+    database.storeSurvey(bot, storage, survey, function(stored) {
+      var err_msg = "Ops, an error occurred while saving user's comment :fearful:";
+      
       // Call dialogOk() or else Slack will think this is an error
       stored ? bot.dialogOk() : bot.dialogError({
         name: 'comment',
-        error: "Ops, an error occurred while saving user\'s comment :fearful:"
+        error: err_msg
       });
       
       // We know we have executed this dialog by pressing a button, then,
@@ -234,7 +237,7 @@ module.exports = function (controller, middleware) {
       // should be able to answer.
       let user = database.findUserOrMake(message.user, false);
       if (user && user.latest_button_message) {
-        let ok_msg = 'Thank you for your feedback! :hugging_face:'
+        let ok_msg = 'Thank you for your comments! :hugging_face:'
         botReplyToActionButton(bot, user.latest_button_message,
           stored ? ok_msg : err_msg);
       }
@@ -287,7 +290,7 @@ module.exports = function (controller, middleware) {
         
         bot.startTyping(message, function() { });
         botConversationReply(bot, message);
-        bot.stopTyping(message, function() { });
+        //bot.stopTyping(message, function() { });
       }
     });
   });
@@ -311,7 +314,9 @@ module.exports = function (controller, middleware) {
       // Language button
       if (message.callback_id == 'pick_language_level') {
         let level = message.actions[0].name;
-        database.sendContinueToken(bot, message, {language_level: level});
+        database.sendContinueToken(bot, message, {language_level: level},() => {
+          botConversationReply(bot, message);
+        });
 
         let footer_string = sprintf("The story will be for a %s level", level);
         botReplyToActionButton(bot, message, footer_string);

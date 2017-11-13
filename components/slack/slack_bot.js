@@ -13,8 +13,8 @@ module.exports = function (webserver, botkit, storage, middleware) {
 
   var controller = botkit.slackbot(configuration);
   var bot = controller.spawn({
-    require_delivery : true,
-    send_via_rtm : true,
+    //require_delivery : true,
+    //send_via_rtm : true,
     token: process.env.SLACK_TOKEN
   });
   /*
