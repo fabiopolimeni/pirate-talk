@@ -47,15 +47,15 @@ module.exports = function (controller, middleware) {
         text: '',
         actions: [{
           "name": "ok",
-          "text": "Right :thumbsup:",
+          "text": "Nice! :thumbsup:",
           "value": "good",
           "style": "primary",
           "type": "button"
         }, {
           "name": "soso",
-          "text": "Improve :raised_hand:",
+          "text": "Improve :thumbsdown:",
           "value": "maybe",
-          "style": "default",
+          "style": "danger",
           "type": "button"
         }]
       });
