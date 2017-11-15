@@ -5,18 +5,15 @@ const debug = require('debug')('pirate-talk:facebook-conversation');
 const merge = require('deepmerge');
 const CJSON = require('circular-json');
 const sprintf = require('sprintf-js').sprintf;
-const chat = require('chat');
 
 module.exports = function (controller, middleware) {
 
   // Database handler
   var database = require('../../database')(controller, middleware);
-
-  // Facebook Chat API global handler
-  var chat_login = null;
+  var chat = require('./chat')();
 
   function handleChatEvent(event, stopListening) {
-
+    console.log('"event": %s', CJSON.stringify(event))
   }
 
   // Convert actions to buttons
@@ -71,8 +68,9 @@ module.exports = function (controller, middleware) {
     //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
 
     // If we haven't logged into our account yet, do it now
-    if (!chat_login && message.page) {
-      chat_login.login(message.page, handleChatEvent);
+    if (!chat.isLogged() && message.page) {
+      console.log('Logging in with Facebook chat API ...')
+      chat.login(message.page, handleChatEvent);
     }
 
     if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
@@ -122,11 +120,14 @@ module.exports = function (controller, middleware) {
     // If no attachments need to be processed, then
     // proceed to respond with a simple text message.
     else {
+      
       // Send reply to the user, text can't be empty
       if (message.watsonData.output.text.length > 0) {
         // Call one reply per message instead of joining the output.
         message.watsonData.output.text.forEach((phrase) => {
-          bot.reply(message, { text: phrase });
+          setTimeout(function() {
+            bot.reply(message, { text: phrase })
+          }, 300);
         });
       }
 
@@ -140,8 +141,8 @@ module.exports = function (controller, middleware) {
       // hence, previous dialogs will be overwritten,
       // and this will prevent the array to grow indefinitely.
       dialogs.splice(message.watsonData.context.system.dialog_turn_counter, 1, {
-        user_input: message.watsonData.input.text.join('\n'),
-        bot_output: message.watsonData.output.text.join('\n'),
+        user_input: message.watsonData.input.text,
+        bot_output: message.watsonData.output.text,
         intents: message.watsonData.intents,
         entities: message.watsonData.entities,
         turn_id: message.watsonData.context.system.dialog_turn_counter,
