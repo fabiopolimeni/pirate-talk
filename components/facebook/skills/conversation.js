@@ -1,15 +1,23 @@
 require('dotenv').load()
 
-var clone = require('clone');
-var debug = require('debug')('pirate-talk:facebook-conversation');
-var merge = require('deepmerge');
-var CJSON = require('circular-json');
-var sprintf = require('sprintf-js').sprintf;
+const clone = require('clone');
+const debug = require('debug')('pirate-talk:facebook-conversation');
+const merge = require('deepmerge');
+const CJSON = require('circular-json');
+const sprintf = require('sprintf-js').sprintf;
+const chat = require('chat');
 
 module.exports = function (controller, middleware) {
 
   // Database handler
   var database = require('../../database')(controller, middleware);
+
+  // Facebook Chat API global handler
+  var chat_login = null;
+
+  function handleChatEvent(event, stopListening) {
+
+  }
 
   // Convert actions to buttons
   function actionToButton(action, callback_id) {
@@ -58,9 +66,14 @@ module.exports = function (controller, middleware) {
 
   // Replay to conversation
   function botConversationReply(bot, message) {
-    let debug_message = clone(message);
-    debug_message.watsonData.context.system = null;
+    //let debug_message = clone(message);
+    //debug_message.watsonData.context.system = null;
     //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
+
+    // If we haven't logged into our account yet, do it now
+    if (!chat_login && message.page) {
+      chat_login.login(message.page, handleChatEvent);
+    }
 
     if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
       // Because attachments are received in Slack way,
@@ -83,9 +96,7 @@ module.exports = function (controller, middleware) {
       // Because attachments have already been process at this point,
       // we want to remove them from the message we want to forward.
       let pending_message = clone(message);
-      if (pending_message.watsonData.output.action.attachments) {
-        pending_message.watsonData.output.action.attachments = null;
-      }
+      pending_message.watsonData.output.action.attachments = null;
 
       // Retrieve the user, or make a new one if doesn't exist
       let user = database.findUserOrMake(message.user, true);
@@ -111,14 +122,12 @@ module.exports = function (controller, middleware) {
     // If no attachments need to be processed, then
     // proceed to respond with a simple text message.
     else {
-      // Construct the replay message
-      let reply_message = {
-        text: message.watsonData.output.text.join('\n')
-      };
-
       // Send reply to the user, text can't be empty
-      if (reply_message.text) {
-        bot.reply(message, reply_message);
+      if (message.watsonData.output.text.length > 0) {
+        // Call one reply per message instead of joining the output.
+        message.watsonData.output.text.forEach((phrase) => {
+          bot.reply(message, { text: phrase });
+        });
       }
 
       // Retrieve the user, or make a new one if doesn't exist
@@ -131,8 +140,8 @@ module.exports = function (controller, middleware) {
       // hence, previous dialogs will be overwritten,
       // and this will prevent the array to grow indefinitely.
       dialogs.splice(message.watsonData.context.system.dialog_turn_counter, 1, {
-        user_input: message.watsonData.input.text,
-        bot_output: message.watsonData.output.text,
+        user_input: message.watsonData.input.text.join('\n'),
+        bot_output: message.watsonData.output.text.join('\n'),
         intents: message.watsonData.intents,
         entities: message.watsonData.entities,
         turn_id: message.watsonData.context.system.dialog_turn_counter,
