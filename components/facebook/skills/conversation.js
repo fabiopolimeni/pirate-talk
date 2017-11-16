@@ -10,11 +10,6 @@ module.exports = function (controller, middleware) {
 
   // Database handler
   var database = require('../../database')(controller, middleware);
-  var chat = require('./chat')();
-
-  function handleChatEvent(event, stopListening) {
-    console.log('"event": %s', CJSON.stringify(event))
-  }
 
   // Convert actions to buttons
   function actionToButton(action, callback_id) {
@@ -72,7 +67,7 @@ module.exports = function (controller, middleware) {
           messenger_extensions: true,
           title: 'Improve this',
           type: 'web_url',
-          url: sprintf('https://pirate-talk.glitch.me/forms/feedback.html?%s', payload_id),
+          url: sprintf('https://pirate-talk.glitch.me/facebook/webviews/feedback_form.html?%s', payload_id),
           webview_height_ratio: 'compact'
         }]
       }
@@ -86,12 +81,6 @@ module.exports = function (controller, middleware) {
     //let debug_message = clone(message);
     //debug_message.watsonData.context.system = null;
     //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
-
-    // If we haven't logged into our account yet, do it now
-    // if (chat && !chat.isLogged() && message.page && message.page == process.env.FACEBOOK_PAGE_ID) {
-    //   console.log('Logging in with Facebook chat API ...')
-    //   chat.login(message.page, handleChatEvent);
-    // }
 
     if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
       // Because attachments are received in Slack way,
@@ -205,7 +194,7 @@ module.exports = function (controller, middleware) {
     middleware.readContext(message.user, function (err, context) {
       if (!context) return;
 
-      let postback_ids = message.text.split(':');
+      let postback_ids = message.text.split('.');
       if (postback_ids[0] == 'pick_language_level') {
         let level = postback_ids[1];
         database.sendContinueToken(bot, message, {
@@ -220,7 +209,7 @@ module.exports = function (controller, middleware) {
         // TODO: ...
       }
       else if (postback_ids[0] == 'feedback') {
-        console.log('feedback on dialog id = %s:%s', 
+        console.log('feedback on dialog id = %s.%s', 
           postback_ids[1], postback_ids[2]);
 
         // TODO: ...
@@ -263,8 +252,9 @@ module.exports = function (controller, middleware) {
         user.waiting_for_message.message_id) {
 
         var user_mid = user.waiting_for_message.message_id;
+
         // The message_delivered event can respond to multiple messages,
-        // therefore we need to search for the matching one in the message list.
+        // therefore we need to search for the matching one in the list.
         let message_id = message.delivery.mids.find((mid) => {
           return mid == user_mid;
         });
