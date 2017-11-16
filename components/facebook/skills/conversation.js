@@ -61,6 +61,23 @@ module.exports = function (controller, middleware) {
     return element;
   }
 
+  // Create attachment feedback button
+  function createFeedbackButton(payload_id) {
+    let attachment = {
+      type: 'template',
+      payload: {
+        template_type: 'button',
+        sharable: false,
+        text: 'Do we need to improve the latest dialogue?',
+        buttons: [{
+          type: 'postback',
+          text: 'Improve',
+          payload: payload_id
+        }]
+      }
+    };
+  }
+
   // Replay to conversation
   function botConversationReply(bot, message) {
     //let debug_message = clone(message);
@@ -92,7 +109,7 @@ module.exports = function (controller, middleware) {
       };
 
       // Because attachments have already been process at this point,
-      // we want to remove them from the message we want to forward.
+      // we want to remove them from the message to forward.
       let pending_message = clone(message);
       pending_message.watsonData.output.action.attachments = null;
 
@@ -123,12 +140,25 @@ module.exports = function (controller, middleware) {
       
       // Send reply to the user, text can't be empty
       if (message.watsonData.output.text.length > 0) {
-        // Call one reply per message instead of joining the output.
-        message.watsonData.output.text.forEach((phrase) => {
-          setTimeout(function() {
-            bot.reply(message, { text: phrase })
-          }, 300);
-        });
+
+        // No feedback request if specifically removed
+        let feedback_request = !(message.watsonData.output.action && message.watsonData.output.action.no_feedback);
+        
+        // Request for a feedback.
+        let feed_attach = {}
+        if (feedback_request) {
+          let payload_id = sprintf('%s:%s:%s',
+            'feedback',
+            message.watsonData.context.conversation_id,
+            message.watsonData.context.system.dialog_turn_counter);
+
+            feed_attach = createFeedbackButton(payload_id)
+        }
+
+        bot.reply(message, {
+          text: message.watsonData.output.text.join('\n'),
+          attachment: feed_attach
+        })
       }
 
       // Retrieve the user, or make a new one if doesn't exist
@@ -180,7 +210,16 @@ module.exports = function (controller, middleware) {
         }, () => {
           botConversationReply(bot, message);
         });
-      } else if (postback_ids[0] == 'survey') {
+      }
+      else if (postback_ids[0] == 'survey') {
+        console.log('survey button clicked!');
+        
+        // TODO: ...
+      }
+      else if (postback_ids[0] == 'feedback') {
+        console.log('feedback on dialog id = %s:%s', 
+          postback_ids[1], postback_ids[2]);
+
         // TODO: ...
       }
     });
