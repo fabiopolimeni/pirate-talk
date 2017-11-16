@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Leave your suggestions</title>
+  <style type="text/css">
+    .form-style-7 {
+      max-width: 90%;
+      max-height: 90%;
+      margin: 5% auto;
+      background: #fff;
+      border-radius: 1%;
+      font-family: Georgia, "Times New Roman", Times, serif;
+    }
+
+    .form-style-7 h1 {
+      display: block;
+      text-align: center;
+      padding: 0;
+      margin: 0 0 0 0;
+      color: #5C5C5C;
+      font-size: x-large;
+    }
+
+    .form-style-7 ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .form-style-7 li {
+      display: block;
+      border: 1px solid #DDDDDD;
+      margin-bottom: 0;
+      border-radius: 5px;
+    }
+
+    .form-style-7 li:last-child {
+      border: none;
+      margin-bottom: 0;
+      text-align: center;
+    }
+
+    .form-style-7 li>label {
+      display: block;
+      float: left;
+      margin-top: -1%;
+      margin-left: 2%;
+      background: #FFFFFF;
+      height: 15%;
+      padding: 0 1% 0 1%;
+      color: #2471FF;
+      font-size: 240%;
+      font-weight: bold;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .form-style-7 input[type="text"],
+    .form-style-7 input[type="date"],
+    .form-style-7 input[type="datetime"],
+    .form-style-7 input[type="email"],
+    .form-style-7 input[type="number"],
+    .form-style-7 input[type="search"],
+    .form-style-7 input[type="time"],
+    .form-style-7 input[type="url"],
+    .form-style-7 input[type="password"],
+    .form-style-7 textarea,
+    .form-style-7 select {
+      box-sizing: border-box;
+      -webkit-box-sizing: border-box;
+      -moz-box-sizing: border-box;
+      width: 100%;
+      display: block;
+      outline: none;
+      border: none;
+      height: 170%;
+      line-height: 100%;
+      font-size: 200%;
+      padding: 0;
+      font-family: Georgia, "Times New Roman", Times, serif;
+    }
+
+    .form-style-7 input[type="text"]:focus,
+    .form-style-7 input[type="date"]:focus,
+    .form-style-7 input[type="datetime"]:focus,
+    .form-style-7 input[type="email"]:focus,
+    .form-style-7 input[type="number"]:focus,
+    .form-style-7 input[type="search"]:focus,
+    .form-style-7 input[type="time"]:focus,
+    .form-style-7 input[type="url"]:focus,
+    .form-style-7 input[type="password"]:focus,
+    .form-style-7 textarea:focus,
+    .form-style-7 select:focus {}
+
+    .form-style-7 li>span {
+      background: #F3F3F3;
+      display: block;
+      padding: 0;
+      text-align: center;
+      color: #C0C0C0;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 180%;
+      font-style: italic;
+    }
+
+    .form-style-7 textarea {
+      resize: none;
+      padding: 1.5% 1% 1.5% 1%;
+      font-family: Arial, Helvetica, sans-serif;
+      height: 350px;
+      font-size: 240%;
+      line-height: 100%;
+      color: #959595;
+    }
+
+    .form-style-7 input[type="submit"],
+    .form-style-7 input[type="button"] {
+      background: #2471FF;
+      border: none;
+      margin-top: 2%;
+      border-bottom: 3px solid #5994FF;
+      border-radius: 3px;
+      color: #D2E2FF;
+      font-size: 36px;
+      width: 160px;
+      height: 80px;
+    }
+
+    .form-style-7 input[type="submit"]:hover,
+    .form-style-7 input[type="button"]:hover {
+      background: #6B9FFF;
+      color: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <script type="text/javascript">
+    (function (d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) {
+        return;
+      }
+      js = d.createElement(s);
+      js.id = id;
+      js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'Messenger'));
+
+    function submitForm() {
+      document.getElementById("feedback_form").submit();
+      MessengerExtensions.requestCloseBrowser(function success() {
+        // webview closed
+      }, function error(err) {
+        // an error occurred
+      });
+    }
+
+    window.extAsyncInit = function () {
+      //alert('Messenger Extensions JS SDK is done loading')
+      var payload_id = window.location.href.split('?')[1];
+
+      // If window.name == facebook_ref, for some unknown
+      // reason the url ends with a '=' character.
+      payload_id = payload_id.split('=')[0]
+
+      //document.getElementById("suggestion_label").innerHTML = payload_id
+
+      // Add the payload_id to one of the form hidden input,
+      // that is we can get it when the form is submitted.
+      if (payload_id) {
+        var payload_input = document.getElementById("payload");
+        payload_input.value = payload_id
+      }
+    };
+  </script>
+  <form id="feedback_form" class="form-style-7">
+    <input id="payload" type="hidden" name="payload_id" value="">
+    <ul>
+      <li>
+        <label id="suggestion_label" for="suggestion">How can we improve?</label>
+        <textarea id="suggestion_textarea" name="suggestion"></textarea>
+        <span>Leave your comment above</span>
+      </li>
+      <li>
+        <input type="submit" value="Submit" onclick="submitForm()">
+      </li>
+    </ul>
+  </form>
+</body>
+
+</html>

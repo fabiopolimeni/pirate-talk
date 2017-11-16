@@ -148,6 +148,7 @@ module.exports = function (controller, middleware) {
       let feedback = merge({
         id: callback_conv_id.concat(':', callback_turn_id),
         workspace: process.env.WATSON_WORKSPACE_ID,
+        frontend: 'Slack',
         action: message.text,
         level: context.language_level,
         version: context.version,

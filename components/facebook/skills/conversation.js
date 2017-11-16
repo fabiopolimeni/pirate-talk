@@ -62,20 +62,23 @@ module.exports = function (controller, middleware) {
   }
 
   // Create attachment feedback button
-  function createFeedbackButton(payload_id) {
+  function createFeedbackButton(payload_id, reply_text) {
     let attachment = {
       type: 'template',
       payload: {
         template_type: 'button',
-        sharable: false,
-        text: 'Do we need to improve the latest dialogue?',
+        text: reply_text,
         buttons: [{
-          type: 'postback',
-          text: 'Improve',
-          payload: payload_id
+          messenger_extensions: true,
+          title: 'Improve this',
+          type: 'web_url',
+          url: sprintf('https://pirate-talk.glitch.me/forms/feedback.html?%s', payload_id),
+          webview_height_ratio: 'compact'
         }]
       }
     };
+    
+    return attachment;
   }
 
   // Replay to conversation
@@ -140,25 +143,25 @@ module.exports = function (controller, middleware) {
       
       // Send reply to the user, text can't be empty
       if (message.watsonData.output.text.length > 0) {
-
+        let text_message = message.watsonData.output.text.join('\n')
+        
         // No feedback request if specifically removed
         let feedback_request = !(message.watsonData.output.action && message.watsonData.output.action.no_feedback);
         
         // Request for a feedback.
-        let feed_attach = {}
         if (feedback_request) {
-          let payload_id = sprintf('%s:%s:%s',
-            'feedback',
+          let payload_id = sprintf('%s.%s.%s', 'feedback',
             message.watsonData.context.conversation_id,
             message.watsonData.context.system.dialog_turn_counter);
 
-            feed_attach = createFeedbackButton(payload_id)
+          let feed_attach = createFeedbackButton(payload_id, text_message)
+          console.log('"feed_attachment": %s', JSON.stringify(feed_attach))
+          bot.reply(message, { attachment: feed_attach })
         }
-
-        bot.reply(message, {
-          text: message.watsonData.output.text.join('\n'),
-          attachment: feed_attach
-        })
+        // Answer with no feedback request
+        else {
+          bot.reply(message, { text: text_message })
+        }
       }
 
       // Retrieve the user, or make a new one if doesn't exist
