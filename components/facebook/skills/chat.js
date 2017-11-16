@@ -11,15 +11,16 @@ module.exports = function () {
   var _api = null;
 
   // @param callback(event, stop)
-  function _login(page_id, callback) {
+  function _login(page_id, user_id, callback) {
 
     let credentials = {
-      email: process.env.FACEBOOK_CHAT_EMAIL,
-      password: process.env.FACEBOOK_CHAT_PWD
+      email: process.env.FACEBOOK_ACCOUNT_EMAIL,
+      password: process.env.FACEBOOK_ACCOUNT_PASSWORD
     }
 
     let options = {
-      pageID: page_id
+      pageID: page_id,
+      listenEvents: true
     }
 
     account_login(credentials, options, (err, api) => {
@@ -30,8 +31,10 @@ module.exports = function () {
       } else {
         _api = api;
         _is_logged_in = true;
-        console.log('Facebook account %s, successful logged in as page: %s',
-          credentials.email, options.pageID);
+        console.log('Facebook account %s, successful logged in as page: %s\n"api": %s',
+          credentials.email, options.pageID, CJSON.stringify(api));
+        
+        _api.sendMessage('Hi from user: ' + user_id)
 
         var stop = api.listen((err, event) => {
           if (err) {

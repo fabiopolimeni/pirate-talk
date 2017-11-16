@@ -68,10 +68,10 @@ module.exports = function (controller, middleware) {
     //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
 
     // If we haven't logged into our account yet, do it now
-    if (!chat.isLogged() && message.page) {
-      console.log('Logging in with Facebook chat API ...')
-      chat.login(message.page, handleChatEvent);
-    }
+    // if (chat && !chat.isLogged() && message.page && message.page == process.env.FACEBOOK_PAGE_ID) {
+    //   console.log('Logging in with Facebook chat API ...')
+    //   chat.login(message.page, handleChatEvent);
+    // }
 
     if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
       // Because attachments are received in Slack way,

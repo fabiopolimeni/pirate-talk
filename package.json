@@ -9,7 +9,7 @@
   "dependencies": {
     "assert": "^1.4.1",
     "body-parser": "^1.18.2",
-    "botkit": "^0.6.6",
+    "botkit": "^0.6.7",
     "botkit-middleware-watson": "^1.6.1",
     "botkit-storage-mongo": "^1.0.7",
     "circular-json": "^0.4.0",
