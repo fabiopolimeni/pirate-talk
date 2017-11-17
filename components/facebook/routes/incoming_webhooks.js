@@ -28,23 +28,10 @@ module.exports = function (webserver, controller, bot) {
 
     debug('Configured POST /facebook/form url for receiving forms submission');
     webserver.post('/facebook/form', function (req, res) {
-      if (req.body && req.body.payload_id) {
-        
-        let tokens = req.body.payload_id.split('.');
-        
-        if (tokens.length >= 4) {
-          let message = {
-            action: tokens[0],
-            user: tokens[1],
-            conversation: tokens[2],
-            turn: tokens[3]
-          }
-          
-          res.status(200);
-          res.send('OK');
-          
-          controller.trigger('form_received', [bot, message]);
-        }
+      if (req.body) {
+        res.status(200);
+        res.send('OK');  
+        controller.trigger('form_received', [bot, req.body]);
       }
     });
 

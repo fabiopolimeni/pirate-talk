@@ -1,0 +1,129 @@
+.form-style-7 {
+  max-width: 90%;
+  max-height: 90%;
+  margin: 5% auto;
+  background: #fff;
+  border-radius: 20px;
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.form-style-7 h1 {
+  display: block;
+  text-align: center;
+  padding: 0;
+  margin: 0 0 0 0;
+  color: #5C5C5C;
+  font-size: x-large;
+}
+
+.form-style-7 ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.form-style-7 li {
+  display: block;
+  border: 2px solid #CCCCCC;
+  margin-bottom: 0;
+  border-radius: 40px 40px 20px 20px
+}
+
+.form-style-7 li:last-child {
+  border: none;
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.form-style-7 li>label {
+  display: block;
+  float: left;
+  margin-top: -2%;
+  margin-left: 5%;
+  background: #FFFFFF;
+  height: 15%;
+  padding: 0 1% 0 1%;
+  /*color: #2471FF;*/
+  color: #959595;
+  font-size: 240%;
+  font-weight: bold;
+  overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.form-style-7 input[type="text"],
+.form-style-7 input[type="date"],
+.form-style-7 input[type="datetime"],
+.form-style-7 input[type="email"],
+.form-style-7 input[type="number"],
+.form-style-7 input[type="search"],
+.form-style-7 input[type="time"],
+.form-style-7 input[type="url"],
+.form-style-7 input[type="password"],
+.form-style-7 textarea,
+.form-style-7 select {
+  box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  width: 100%;
+  display: block;
+  outline: none;
+  border: none;
+  height: 170%;
+  line-height: 100%;
+  font-size: 200%;
+  padding: 0;
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.form-style-7 input[type="text"]:focus,
+.form-style-7 input[type="date"]:focus,
+.form-style-7 input[type="datetime"]:focus,
+.form-style-7 input[type="email"]:focus,
+.form-style-7 input[type="number"]:focus,
+.form-style-7 input[type="search"]:focus,
+.form-style-7 input[type="time"]:focus,
+.form-style-7 input[type="url"]:focus,
+.form-style-7 input[type="password"]:focus,
+.form-style-7 textarea:focus,
+.form-style-7 select:focus {}
+
+.form-style-7 li>span {
+  background: #E3E3E3;
+  display: block;
+  padding: 2%;
+  text-align: center;
+  color: #A0A0A0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 180%;
+  font-style: italic;
+  border-radius: 0 0 20px 20px
+}
+
+.form-style-7 textarea {
+  resize: none;
+  padding: 2% 3% 2% 3%;
+  font-family: Arial, Helvetica, sans-serif;
+  height: 350px;
+  font-size: 280%;
+  line-height: 100%;
+  color: #000000;
+}
+
+.form-style-7 input[type="submit"],
+.form-style-7 input[type="button"] {
+  background: #2471FF;
+  border: none;
+  margin-top: 2%;
+  border-bottom: 1% solid #5994FF;
+  border-radius: 50px;
+  color: #D2E2FF;
+  padding: 3%;
+  font-size: 260%;
+}
+
+.form-style-7 input[type="submit"]:hover,
+.form-style-7 input[type="button"]:hover {
+  background: #6B9FFF;
+  color: #fff;
+}

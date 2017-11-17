@@ -12,26 +12,35 @@ module.exports = function (controller, middleware) {
   var database = require('../../database')(controller, middleware);
 
   // Convert actions to buttons
-  function actionToButton(action, callback_id) {
+  function actionToButton(action, callback_id, conversation_id, user_id) {
     let button = {};
 
     if (action.type && action.type == 'button') {
-      if (action.name) {
-        button.payload = sprintf('%s.%s', callback_id, action.name);
-      }
-
+      
       if (action.text) {
         button.title = action.text;
       }
 
-      button.type = 'postback';
+      if (callback_id == 'survery') {
+        let query = sprintf('%s.%s.%s', callback_id, user_id, conversation_id)
+        button.type = 'web_url';
+        button.messenger_extensions = true,
+        button.webview_height_ratio = 'compact',
+        button.url = sprintf('https://pirate-talk.glitch.me/facebook/webviews/survey_form.html?%s', query)
+      }
+      else if (callback_id == 'pick_language_level') {
+        button.type = 'postback';
+        if (action.name) {
+          button.payload = sprintf('%s.%s', callback_id, action.name);
+        }
+      }
     }
 
     return button;
   }
 
   // Convert Slack attachment into Facebook element
-  function attachmentToElement(attachment) {
+  function attachmentToElement(attachment, conversation_id, user_id) {
     let element = {};
 
     if (attachment.image_url) {
@@ -47,7 +56,7 @@ module.exports = function (controller, middleware) {
     if (attachment.actions && attachment.callback_id) {
       var buttons = [];
       attachment.actions.forEach(action => {
-        buttons.push(actionToButton(action, attachment.callback_id));
+        buttons.push(actionToButton(action, attachment.callback_id, conversation_id, user_id));
       });
 
       element.buttons = buttons;
@@ -55,7 +64,7 @@ module.exports = function (controller, middleware) {
 
     return element;
   }
-
+  
   // Create attachment feedback button
   function createFeedbackButton(payload_id, reply_text) {
     let attachment = {
@@ -64,9 +73,9 @@ module.exports = function (controller, middleware) {
         template_type: 'button',
         text: reply_text,
         buttons: [{
-          messenger_extensions: true,
           title: 'Improve this',
           type: 'web_url',
+          messenger_extensions: true,
           url: sprintf('https://pirate-talk.glitch.me/facebook/webviews/feedback_form.html?%s', payload_id),
           webview_height_ratio: 'compact'
         }]
@@ -88,7 +97,11 @@ module.exports = function (controller, middleware) {
       var elements = [];
       let attachments = message.watsonData.output.action.attachments;
       attachments.forEach(attachment => {
-        elements.push(attachmentToElement(attachment));
+        elements.push(attachmentToElement(
+          attachment,
+          message.watsonData.context.conversation_id,
+          message.user
+        ));
       });
 
       let attachment = {
@@ -277,8 +290,28 @@ module.exports = function (controller, middleware) {
     }, 500);
   });
   
-  controller.on('form_received', function (bot, message) {
-    console.log('"form_received": %s', CJSON.stringify(message))
+  controller.on('form_received', function (bot, body) {
+    console.log('"form_received": %s', CJSON.stringify(body))
+    if (!body.payload_id) return;
+    
+    let tokens = body.payload_id.split('.');
+    if(body.suggestion && tokens.length >= 4) {
+      let message = {
+        action: tokens[0],
+        user: tokens[1],
+        conversation: tokens[2],
+        turn: tokens[3],
+        suggestion: body.suggestion.trim()
+      };
+    }
+    else if (body.comment && tokens.length >= 3) {
+      let message = {
+        action: tokens[0],
+        user: tokens[1],
+        conversation: tokens[2],
+        comment: body.comment.trim()
+      };
+    }
   });
 
   // look for sticker, image and audio attachments
