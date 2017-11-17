@@ -17,7 +17,7 @@ module.exports = function (controller, middleware) {
 
     if (action.type && action.type == 'button') {
       if (action.name) {
-        button.payload = sprintf('%s:%s', callback_id, action.name);
+        button.payload = sprintf('%s.%s', callback_id, action.name);
       }
 
       if (action.text) {
@@ -139,8 +139,8 @@ module.exports = function (controller, middleware) {
         
         // Request for a feedback.
         if (feedback_request) {
-          let payload_id = sprintf('%s.%s.%s', 'feedback',
-            message.watsonData.context.conversation_id,
+          let payload_id = sprintf('%s.%s.%s.%s', 'feedback',
+            message.user, message.watsonData.context.conversation_id,
             message.watsonData.context.system.dialog_turn_counter);
 
           let feed_attach = createFeedbackButton(payload_id, text_message)
@@ -269,12 +269,16 @@ module.exports = function (controller, middleware) {
           botConversationReply(bot, forward_message);
         }
 
-        // There is a message pending, we stop this function
+        // There is a pending message, we stop this function
         // to be executed in a time loop, even the pending
         // message is not the one we were looking for.
         clearInterval(message_id_ready);
       }
     }, 500);
+  });
+  
+  controller.on('form_received', function (bot, message) {
+    console.log('"form_received": %s', CJSON.stringify(message))
   });
 
   // look for sticker, image and audio attachments
