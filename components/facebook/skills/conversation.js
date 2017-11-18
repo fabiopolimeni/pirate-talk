@@ -22,11 +22,11 @@ module.exports = function (controller, middleware) {
       }
 
       if (callback_id == 'survery') {
-        let query = sprintf('%s.%s.%s', callback_id, user_id, conversation_id)
         button.type = 'web_url';
         button.messenger_extensions = true,
         button.webview_height_ratio = 'compact',
-        button.url = sprintf('https://pirate-talk.glitch.me/facebook/webviews/survey_form.html?%s', query)
+        button.url = sprintf('https://pirate-talk.glitch.me/facebook/webviews/survey_form.html?%s.%s.%s', 
+          callback_id, user_id, conversation_id)
       }
       else if (callback_id == 'pick_language_level') {
         button.type = 'postback';
@@ -166,27 +166,8 @@ module.exports = function (controller, middleware) {
         }
       }
 
-      // Retrieve the user, or make a new one if doesn't exist
-      let user = database.findUserOrMake(message.user, true);
-      let dialogs = user.history;
-
-      // Add a dialog info to the list of dialogs.
-      // When the conversation restarts, the index
-      // of dialog_turn_counter starts over again,
-      // hence, previous dialogs will be overwritten,
-      // and this will prevent the array to grow indefinitely.
-      dialogs.splice(message.watsonData.context.system.dialog_turn_counter, 1, {
-        user_input: message.watsonData.input.text,
-        bot_output: message.watsonData.output.text,
-        intents: message.watsonData.intents,
-        entities: message.watsonData.entities,
-        turn_id: message.watsonData.context.system.dialog_turn_counter,
-        conversation_id: message.watsonData.context.conversation_id,
-        user_id: message.user,
-        date: (new Date()).toString()
-      })
-
-      //debug('"dialogs": %s', CJSON.stringify(dialogs, null, 2))
+      // Store latest conversation dialog into user's history
+      database.addMessageToUserHistory(message);
 
       // At this point we need to check whether a jump is needed to continue with the conversation.
       // If it is needed, then, upgrade Watson context and sand it back to continue to the next dialog.
@@ -216,17 +197,6 @@ module.exports = function (controller, middleware) {
           botConversationReply(bot, message);
         });
       }
-      else if (postback_ids[0] == 'survey') {
-        console.log('survey button clicked!');
-        
-        // TODO: ...
-      }
-      else if (postback_ids[0] == 'feedback') {
-        console.log('feedback on dialog id = %s.%s', 
-          postback_ids[1], postback_ids[2]);
-
-        // TODO: ...
-      }
     });
   });
 
@@ -255,6 +225,33 @@ module.exports = function (controller, middleware) {
     });
   });
 
+  controller.on('form_received', function (bot, body) {
+    console.log('"form_received": %s', CJSON.stringify(body))
+    if (!body.payload_id) return;
+    
+    let tokens = body.payload_id.split('.');
+    if(body.suggestion && tokens.length >= 4) {
+      let message = {
+        action: tokens[0],
+        user: tokens[1],
+        conversation: tokens[2],
+        turn: tokens[3],
+        suggestion: {
+          what: 'response',
+          how: body.suggestion.trim()
+        }
+      };
+    }
+    else if (body.comment && tokens.length >= 3) {
+      let message = {
+        action: tokens[0],
+        user: tokens[1],
+        conversation: tokens[2],
+        comment: body.comment.trim()
+      };
+    }
+  });
+
   controller.on('message_delivered', function (bot, message) {
     //debug('"delivered": %s', JSON.stringify(message))
 
@@ -264,12 +261,10 @@ module.exports = function (controller, middleware) {
       if (user && user.waiting_for_message &&
         user.waiting_for_message.message_id) {
 
-        var user_mid = user.waiting_for_message.message_id;
-
         // The message_delivered event can respond to multiple messages,
         // therefore we need to search for the matching one in the list.
         let message_id = message.delivery.mids.find((mid) => {
-          return mid == user_mid;
+          return mid == user.waiting_for_message.message_id;
         });
 
         debug('"mid": %s', message_id);
@@ -288,30 +283,6 @@ module.exports = function (controller, middleware) {
         clearInterval(message_id_ready);
       }
     }, 500);
-  });
-  
-  controller.on('form_received', function (bot, body) {
-    console.log('"form_received": %s', CJSON.stringify(body))
-    if (!body.payload_id) return;
-    
-    let tokens = body.payload_id.split('.');
-    if(body.suggestion && tokens.length >= 4) {
-      let message = {
-        action: tokens[0],
-        user: tokens[1],
-        conversation: tokens[2],
-        turn: tokens[3],
-        suggestion: body.suggestion.trim()
-      };
-    }
-    else if (body.comment && tokens.length >= 3) {
-      let message = {
-        action: tokens[0],
-        user: tokens[1],
-        conversation: tokens[2],
-        comment: body.comment.trim()
-      };
-    }
   });
 
   // look for sticker, image and audio attachments
