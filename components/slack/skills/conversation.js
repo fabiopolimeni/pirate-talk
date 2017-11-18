@@ -147,7 +147,13 @@ module.exports = function (controller, middleware) {
 
       // Save the user feedback to database/filesystem 
       // and update buttons message with a footer message.
-      database.handleFeedbackSubmit(bot, message, context, botReplyToActionButton);
+      database.handleFeedbackSubmit(bot, message, context, function (bot, message, stored ) {
+        let footer = stored ?
+        'Thanks for the feedback :clap:' :
+        'Some problem occurred when storing feedback :scream:'
+
+        botReplyToActionButton(bot, message, footer);
+      });
 
       // If the user wants to leave some feedback,
       // then a dialog will pop up, and we will save

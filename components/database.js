@@ -83,23 +83,23 @@ module.exports = function (controller, middleware) {
   
   function _updateUserFeedback(bot, id, suggestion, callback) {
     debug('"suggestion": %s', CJSON.stringify(suggestion));
-
-    let storage = _getStorage();
+    if (!suggestion) return;
 
     // Retrieve the feedback from the database/filesystem
+    let storage = _getStorage();
     storage.feedbacks.get(id, function(err, feedback) {
       if (err || !feedback) {
         console.warn('Warn: could not retrieve feedback %s', id);
         console.error('Error: %s', err);
       }
       
-      if (!feedback) return;
-      
-      // Incorporate user's suggestions
-      feedback.suggestion = suggestion;
-      
-      // Store the feedback back
-      _storeFeedback(storage, feedback, callback);
+      if (feedback) {
+        // Incorporate user's suggestions
+        feedback.suggestion = suggestion;
+        
+        // Re-store the updated feedback
+        _storeFeedback(storage, feedback, callback);
+      }
     });
   }
 
@@ -135,23 +135,22 @@ module.exports = function (controller, middleware) {
       //  JSON.stringify(cur_dialog), JSON.stringify(prev_dialog));
 
       let feedback = merge({
-        id: callback_conv_id.concat(':', callback_turn_id),
+        id: message.callback_id,
         workspace: process.env.WATSON_WORKSPACE_ID,
-        frontend: 'Slack',
+        frontend: bot.type,
         action: message.text,
         level: context.language_level,
         version: context.version,
+        // This exists only in facebook at this point, in slack instead,
+        // it will be added later when the feedback will be updated.
+        suggestion: message.suggestion,
         bot_asked: (prev_dialog) ? prev_dialog.bot_output : ''
       }, cur_dialog);
 
       // Store the feedback
       _storeFeedback(feedback, function (stored) {
-        let footer = stored ?
-          'Thanks for the feedback :clap:' :
-          'Some problem occurred when storing feedback :scream:'
-
         if (callback && typeof callback === 'function') {
-          callback(bot, message, footer);
+          callback(bot, message, stored);
         }
       });
     }
@@ -165,7 +164,9 @@ module.exports = function (controller, middleware) {
       comment: submission.comment,
       level: context.language_level,
       version: context.version,
-      conversation: context.conversation_id
+      frontend: bot.type,
+      conversation: context.conversation_id,
+      workspace: process.env.WATSON_WORKSPACE_ID
     }
 
     _storeSurvey(bot, survey, function (stored) {
@@ -183,7 +184,7 @@ module.exports = function (controller, middleware) {
     };
 
     debug('"submission": %s', CJSON.stringify(message, null, 2))
-    _updateFeedback(bot, message.callback_id, suggestion, function (stored) {
+    _updateUserFeedback(bot, message.callback_id, suggestion, function (stored) {
       if (callback && typeof callback === 'function') {
         callback(bot, message, stored);
       }

@@ -21,7 +21,7 @@ module.exports = function (controller, middleware) {
         button.title = action.text;
       }
 
-      if (callback_id == 'survery') {
+      if (callback_id == 'survey') {
         button.type = 'web_url';
         button.messenger_extensions = true,
         button.webview_height_ratio = 'compact',
@@ -204,10 +204,10 @@ module.exports = function (controller, middleware) {
   // Handle reset special case
   controller.hears(['reset'], 'message_received', function (bot, message) {
     middleware.updateContext(message.user, {}, function (context) {
-      let reset_request = clone(message);
-      reset_request.text = 'reset';
-      middleware.sendToWatson(bot, reset_request, {}, function () {
-        botConversationReply(bot, reset_request);
+      let reset_message = clone(message);
+      reset_message.text = 'reset';
+      middleware.sendToWatson(bot, reset_message, {}, function () {
+        botConversationReply(bot, reset_message);
       });
     });
   });
@@ -227,29 +227,87 @@ module.exports = function (controller, middleware) {
   });
 
   controller.on('form_received', function (bot, body) {
-    console.log('"form_received": %s', CJSON.stringify(body))
+    debug('"form_received": %s', CJSON.stringify(body))
     if (!body.payload_id) return;
     
+    // Query string received from HTTP request is in
+    // the form of action.user.conversation.<turn>.
+    // For some reason facebook wouldn't parse correctly
+    // a typical url query, such ?name=value&something=else,
+    // This is why I had to pick such fixed query format.
+    // I used '.' instead of ':' because the latter is a non
+    // standard URL character, it is reserved, hence, not
+    // to be used within URL query strings.
     let tokens = body.payload_id.split('.');
+
+    // Request from a survey form
     if(body.suggestion && tokens.length >= 4) {
       let message = {
-        action: tokens[0],
         user: tokens[1],
-        conversation: tokens[2],
-        turn: tokens[3],
+        
+        // Reconstruct the callback_id as expected by the db interface.
+        callback_id: sprintf('%s:%s', tokens[2], tokens[3]),
+        
+        // Not really used, though useful
+        // info to look at debugging time.
+        submission: {
+          action: tokens[0],
+          conversation: tokens[2],
+          turn: tokens[3], 
+        },
+
+        // On facebook we set a feedback and the suggestion
+        // at the same time, so we incorporate these at once.
         suggestion: {
           what: 'response',
           how: body.suggestion.trim()
+        },
+
+        // This indicates the feedback on the conversation.
+        // If we want to distinguish between different types
+        // of user's feedback, then we need to incorporate these
+        // into the URL query.
+        text: 'maybe'
+      };
+
+      middleware.readContext(message.user, function (err, context) {
+        if (context) {
+          database.handleFeedbackSubmit(bot, message, context, 
+            function replyToUser(bot, message, stored) {
+              let header = sprintf('The feedback: (%s)\nfor user: (%s)\nwith dialog: (%s)\n',
+                CJSON.stringify(message), message.user, message.callback_id);
+              
+              let output = stored ?
+                debug('%s has been successfully saved! :)', header) :
+                debug('%s has not been saved! :(', header);
+            });
+        }
+      });
+    }
+    // Request from a feedback form
+    else if (body.comment && tokens.length >= 3) {
+      var message = {
+        user: tokens[1],
+        submission: {
+          action: tokens[0],
+          conversation: tokens[2],
+          comment: body.comment.trim()
         }
       };
-    }
-    else if (body.comment && tokens.length >= 3) {
-      let message = {
-        action: tokens[0],
-        user: tokens[1],
-        conversation: tokens[2],
-        comment: body.comment.trim()
-      };
+      
+      middleware.readContext(message.user, function (err, context) {
+        if (context) {
+          database.handleSurveySubmit(bot, message, context, 
+            function replyToUser(bot, message, stored) {
+              let header = sprintf('The survey: (%s)\nfor user: (%s)\n',
+                CJSON.stringify(message), message.user);
+              
+              let output = stored ?
+                debug('%s has been successfully saved! :)', header) :
+                debug('%s has not been saved! :(', header);
+            });
+        }
+      });
     }
   });
 
