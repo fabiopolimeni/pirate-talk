@@ -14,7 +14,7 @@ module.exports = function(controller) {
     webserver.use(express.static('public'));
 
     webserver.listen(process.env.WEBSERVER_PORT || 5000, null, function() {
-        debug('Express webserver configured and listening at http://localhost:' + process.env.WEBSERVER_PORT || 5000);
+        console.log('Express webserver configured and listening at ' + process.env.WEBSERVER_HOSTNAME + ':' + process.env.WEBSERVER_PORT || 5000);
     });
 
     return webserver;

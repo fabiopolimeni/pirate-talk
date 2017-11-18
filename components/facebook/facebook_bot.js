@@ -20,7 +20,7 @@ module.exports = function (webserver, botkit, storage, middleware) {
   var normalizedPath = require("path").join(__dirname, "routes");
   require("fs").readdirSync(normalizedPath).forEach(function (file) {
     debug('Setting up route ' + file);
-    require("./routes/" + file)(webserver, controller);
+    require("./routes/" + file)(webserver, controller, bot);
   });
 
   // Tell Facebook to start sending events to this application

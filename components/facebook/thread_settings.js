@@ -1,3 +1,4 @@
+require('dotenv').load()
 var debug = require('debug')('botkit:thread_settings');
 
 module.exports = function (controller) {
@@ -19,7 +20,7 @@ module.exports = function (controller) {
     'https://127.0.0.1',
     'https://0.0.0.0',
     'https://localhost',
-    'https://pirate-talk.glitch.me/'
+    process.env.WEBSERVER_HOSTNAME
   ]);
   
   controller.api.messenger_profile.get_domain_whitelist(function (err, data)  {

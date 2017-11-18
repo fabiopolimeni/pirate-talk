@@ -238,7 +238,7 @@ module.exports = function (controller, middleware) {
 
     /* Middleware APIs */
     sendContinueToken: _sendReadyToContinueToken,
-    addMessageToUserHistory: _addWatsonDialog,
+    addMessageToUserHistory: _storeWatsonDialog,
   }
 
 }

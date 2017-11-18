@@ -25,8 +25,8 @@ module.exports = function (controller, middleware) {
         button.type = 'web_url';
         button.messenger_extensions = true,
         button.webview_height_ratio = 'compact',
-        button.url = sprintf('https://pirate-talk.glitch.me/facebook/webviews/survey_form.html?%s.%s.%s', 
-          callback_id, user_id, conversation_id)
+        button.url = sprintf('%s/facebook/webviews/survey_form.html?%s.%s.%s', 
+          process.env.WEBSERVER_HOSTNAME, callback_id, user_id, conversation_id)
       }
       else if (callback_id == 'pick_language_level') {
         button.type = 'postback';
@@ -76,7 +76,8 @@ module.exports = function (controller, middleware) {
           title: 'Improve this',
           type: 'web_url',
           messenger_extensions: true,
-          url: sprintf('https://pirate-talk.glitch.me/facebook/webviews/feedback_form.html?%s', payload_id),
+          url: sprintf('%s/facebook/webviews/feedback_form.html?%s',
+            process.env.WEBSERVER_HOSTNAME, payload_id),
           webview_height_ratio: 'compact'
         }]
       }
