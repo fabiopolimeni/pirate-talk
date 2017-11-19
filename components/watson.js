@@ -11,16 +11,16 @@ module.exports = function(){
         version_date: '2017-05-26'
     });
 
-    // Customize Watson Middleware object's before and after callbacks.
-    middleware.before = function(message, payload, callback) {
-        //debug('"watson before": %j', payload);
-        callback(null, payload);
-    }
+    // // Customize Watson Middleware object's before and after callbacks.
+    // middleware.before = function(message, payload, callback) {
+    //     //debug('"watson before": %j', payload);
+    //     callback(null, payload);
+    // }
 
-    middleware.after = function(message, response, callback) {
-        //debug('"watson after": %j', response);
-        callback(null, response);
-    }
+    // middleware.after = function(message, response, callback) {
+    //     //debug('"watson after": %j', response);
+    //     callback(null, response);
+    // }
 
     return middleware;
 }

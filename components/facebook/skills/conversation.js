@@ -16,7 +16,7 @@ module.exports = function (controller, middleware) {
     let button = {};
 
     if (action.type && action.type == 'button') {
-      
+
       if (action.text) {
         button.title = action.text;
       }
@@ -24,11 +24,10 @@ module.exports = function (controller, middleware) {
       if (callback_id == 'survey') {
         button.type = 'web_url';
         button.messenger_extensions = true,
-        button.webview_height_ratio = 'compact',
-        button.url = sprintf('%s/facebook/webviews/survey_form.html?%s.%s.%s', 
-          process.env.WEBSERVER_HOSTNAME, callback_id, user_id, conversation_id)
-      }
-      else if (callback_id == 'pick_language_level') {
+          button.webview_height_ratio = 'compact',
+          button.url = sprintf('%s/facebook/webviews/survey_form.html?%s.%s.%s',
+            process.env.WEBSERVER_HOSTNAME, callback_id, user_id, conversation_id)
+      } else if (callback_id == 'pick_language_level') {
         button.type = 'postback';
         if (action.name) {
           button.payload = sprintf('%s.%s', callback_id, action.name);
@@ -64,7 +63,7 @@ module.exports = function (controller, middleware) {
 
     return element;
   }
-  
+
   // Create attachment feedback button
   function createFeedbackButton(payload_id, reply_text) {
     let attachment = {
@@ -82,16 +81,18 @@ module.exports = function (controller, middleware) {
         }]
       }
     };
-    
+
     return attachment;
   }
 
-  // Replay to conversation
-  function botConversationReply(bot, message) {
-    //let debug_message = clone(message);
-    //debug_message.watsonData.context.system = null;
-    //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
+  function sendMessage(bot, message, user) {
 
+    // Create a waiting_for_message object.
+    user.waiting_for_message = {
+      source_message_id: message.mid
+    };
+
+    // If attachments exist, then, process them separately and in advance.
     if (message.watsonData.output.action && message.watsonData.output.action.attachments) {
       // Because attachments are received in Slack way,
       // they need to be converted into Facebook templates.
@@ -105,6 +106,7 @@ module.exports = function (controller, middleware) {
         ));
       });
 
+      // Skeleton of a generic template
       let attachment = {
         type: 'template',
         payload: {
@@ -114,71 +116,145 @@ module.exports = function (controller, middleware) {
         }
       };
 
-      // Because attachments have already been process at this point,
-      // we want to remove them from the message to forward.
+      // Before creating a pending message, remove the attachments,
+      // otherwise the function will keep calling itself indefinitely.
       let pending_message = clone(message);
       pending_message.watsonData.output.action.attachments = null;
 
-      // Retrieve the user, or make a new one if doesn't exist
-      let user = database.findUserOrMake(message.user, true);
-      user.waiting_for_message = {
-        forward_message: pending_message
-      };
+      // We have a message to forward, once
+      // the source one has been delivered.
+      user.waiting_for_message.forward_message = pending_message;
+
+      // Because messages with attachments can take time to be delivered,
+      // they may arrive out of order, while, we want to make sure messages
+      // are delivered in order. Therefore, we attach a message to the user's
+      // object to check later, when a 'message_delivered' event is received.
 
       bot.reply(message, {
         attachment: attachment
-      }, (err, sent_message) => {
-        if (!sent_message) return;
-
-        // Because messages with attachments can take time to be delivered,
-        // they can arrive out of order, while want to make sure messages are
-        // delivered in order. Therefore, we attach a message to the user's
-        // to check when a 'message_delivered' event is received.
-
-        // Retrieve the user, or make a new one if doesn't exist
-        let user = database.findUserOrMake(sent_message.recipient_id);
-        user.waiting_for_message.message_id = sent_message.message_id;
+      }, (err, sent) => {
+        if (!(sent && user.waiting_for_message)) return;
+        user.waiting_for_message.final_message_id = sent.message_id;
       });
     }
     // If no attachments need to be processed, then
     // proceed to respond with a simple text message.
-    else {
-      
-      // Send reply to the user, text can't be empty
-      if (message.watsonData.output.text.length > 0) {
-        let text_message = message.watsonData.output.text.join('\n')
-        
-        // No feedback request if specifically removed
-        let feedback_request = !(message.watsonData.output.action && message.watsonData.output.action.no_feedback);
-        
-        // Request for a feedback.
-        if (feedback_request) {
-          let payload_id = sprintf('%s.%s.%s.%s', 'feedback',
-            message.user, message.watsonData.context.conversation_id,
-            message.watsonData.context.system.dialog_turn_counter);
+    // Send reply to the user, text can't be empty
+    else if (message.watsonData.output.text.length > 0) {
+      let text_message = message.watsonData.output.text.join('\n')
 
-          let feed_attach = createFeedbackButton(payload_id, text_message)
-          console.log('"feed_attachment": %s', JSON.stringify(feed_attach))
-          bot.reply(message, { attachment: feed_attach })
-        }
-        // Answer with no feedback request
-        else {
-          bot.reply(message, { text: text_message })
-        }
+      // No feedback request if specifically removed
+      let feedback_request = !(message.watsonData.output.action && message.watsonData.output.action.no_feedback);
+
+      // Request for a feedback.
+      if (feedback_request) {
+        let payload_id = sprintf('%s.%s.%s.%s', 'feedback',
+          message.user, message.watsonData.context.conversation_id,
+          message.watsonData.context.system.dialog_turn_counter);
+
+        let feed_attach = createFeedbackButton(payload_id, text_message)
+        debug('"feed_attachment": %s', JSON.stringify(feed_attach))
+
+        bot.reply(message, {
+          attachment: feed_attach
+        }, (err, sent) => {
+          if (!(sent && user.waiting_for_message)) return;
+          user.waiting_for_message.final_message_id = sent.message_id;
+        })
+      }
+      // Answer with no feedback request
+      else {
+        bot.reply(message, {
+          text: text_message
+        }, (err, sent) => {
+          if (!(sent && user.waiting_for_message)) return;
+          user.waiting_for_message.final_message_id = sent.message_id;
+        })
       }
 
       // Store latest conversation dialog into user's history
-      database.addMessageToUserHistory(message);
-
-      // At this point we need to check whether a jump is needed to continue with the conversation.
-      // If it is needed, then, upgrade Watson context and sand it back to continue to the next dialog.
-      if (message.watsonData.output.action && message.watsonData.output.action.wait_before_jump) {
-        database.sendContinueToken(bot, message, {}, () => {
-          botConversationReply(bot, message);
-        });
-      }
+      database.addDialogToUserHistory(message);
+    }
+    // If, for whatever reason the message will never be delivered,
+    // the waiting_for_message property has to be nullified, not to
+    // block all next messages which can be valid at this point.
+    else {
+      user.waiting_for_message = null;
     }
   }
+
+  // Replay to conversation
+  function botConversationReply(bot, message) {
+    //let debug_message = clone(message);
+    //debug_message.watsonData.context.system = null;
+    //debug('"message": %s', CJSON.stringify(debug_message, null, 2));
+
+    var user = database.findUserOrMake(message.user);
+    if (!user) return console.error('No user defined as recipient');
+
+    var waiting_handler = setInterval(() => {
+      if (!(user.waiting_for_message) ||
+        (user.waiting_for_message &&
+          !(user.waiting_for_message.final_message_id ||
+            user.waiting_for_message.source_message_id))) {
+        clearInterval(waiting_handler);
+
+        // Send message replies
+        sendMessage(bot, message, user);
+
+        // At this point we need to check whether a jump
+        // is needed to continue with the conversation.
+        // If so, upgrade Watson context and sand it to
+        // the service to continue with the conversation.
+        if (message.watsonData.output.action &&
+          message.watsonData.output.action.wait_before_jump) {
+          database.sendContinueToken(bot, message, {}, () => {
+            botConversationReply(bot, message);
+          });
+        }
+      }
+    }, 200);
+  }
+
+  function checkOrIgnore(bot, message) {
+    let user = database.findUserOrMake(message.user, true)
+    if (user.waiting_for_message) {
+      return false;
+    }
+
+    // Create a placeholder waiting_for_message object.
+    user.waiting_for_message = {};
+
+    return true;
+  }
+
+  // Handle reset special case
+  controller.hears(['reset'], 'message_received', function (bot, message) {
+    if (!checkOrIgnore(bot, message)) return;
+    middleware.updateContext(message.user, {}, function (context) {
+      let reset_message = clone(message);
+      reset_message.text = 'reset';
+      middleware.sendToWatson(bot, reset_message, {}, function () {
+        botConversationReply(bot, reset_message);
+      });
+    });
+  });
+
+  // Handle common cases with  Watson conversation
+  controller.hears(['.*'], 'message_received', function (bot, message) {
+    if (!checkOrIgnore(bot, message)) return;
+    middleware.interpret(bot, message, function () {
+      if (message.watsonError) {
+        console.error(message.watsonError);
+        user.waiting_for_message = null;
+        bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
+      } else {
+        bot.startTyping(message, function () {});
+        botConversationReply(bot, message);
+        bot.stopTyping(message, function () {});
+      }
+    });
+  });
 
   // Handle button postbacks
   controller.hears(['.*'], 'facebook_postback', function (bot, message) {
@@ -198,38 +274,50 @@ module.exports = function (controller, middleware) {
           botConversationReply(bot, message);
         });
       }
+
     });
   });
 
-  // Handle reset special case
-  controller.hears(['reset'], 'message_received', function (bot, message) {
-    middleware.updateContext(message.user, {}, function (context) {
-      let reset_message = clone(message);
-      reset_message.text = 'reset';
-      middleware.sendToWatson(bot, reset_message, {}, function () {
-        botConversationReply(bot, reset_message);
+  controller.on('message_delivered', function (bot, message) {
+    debug('"delivered": %s', JSON.stringify(message))
+
+    // // message_id can be not ready yet
+    // var message_id_ready = setInterval(() => {
+
+
+    //     // There is a pending message, we stop this function
+    //     // to be executed in a time loop, even the pending
+    //     // message is not the one we were looking for.
+    //     clearInterval(message_id_ready);
+    //   }
+    // }, 200);
+
+    let user = database.findUserOrMake(message.sender.id)
+    if (user && user.waiting_for_message && user.waiting_for_message.final_message_id) {
+
+      // The message_delivered event can respond to multiple messages,
+      // therefore we need to search for the matching one in the list.
+      let matched_id = message.delivery.mids.find((mid) => {
+        return mid == user.waiting_for_message.final_message_id;
       });
-    });
-  });
 
-  // Handle common cases with  Watson conversation
-  controller.hears(['.*'], 'message_received', function (bot, message) {
-    middleware.interpret(bot, message, function () {
-      if (message.watsonError) {
-        console.error(message.watsonError);
-        bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
-      } else {
-        bot.startTyping(message, function () {});
-        botConversationReply(bot, message);
-        bot.stopTyping(message, function () {});
+      // We found a matching message
+      if (matched_id) {
+        // Forward the pending message
+        let forward_message = clone(user.waiting_for_message.forward_message);
+
+        user.waiting_for_message = null;
+        if (forward_message) {
+          sendMessage(bot, forward_message, user);
+        }
       }
-    });
+    }
   });
 
   controller.on('form_received', function (bot, body) {
     debug('"form_received": %s', CJSON.stringify(body))
     if (!body.payload_id) return;
-    
+
     // Query string received from HTTP request is in
     // the form of action.user.conversation.<turn>.
     // For some reason facebook wouldn't parse correctly
@@ -240,20 +328,20 @@ module.exports = function (controller, middleware) {
     // to be used within URL query strings.
     let tokens = body.payload_id.split('.');
 
-    // Request from a survey form
-    if(body.suggestion && tokens.length >= 4) {
+    // Survey form submit
+    if (body.suggestion && tokens.length >= 4) {
       let message = {
         user: tokens[1],
-        
+
         // Reconstruct the callback_id as expected by the db interface.
         callback_id: sprintf('%s:%s', tokens[2], tokens[3]),
-        
+
         // Not really used, though useful
         // info to look at debugging time.
         submission: {
           action: tokens[0],
           conversation: tokens[2],
-          turn: tokens[3], 
+          turn: tokens[3],
         },
 
         // On facebook we set a feedback and the suggestion
@@ -272,11 +360,11 @@ module.exports = function (controller, middleware) {
 
       middleware.readContext(message.user, function (err, context) {
         if (context) {
-          database.handleFeedbackSubmit(bot, message, context, 
+          database.handleFeedbackSubmit(bot, message, context,
             function replyToUser(bot, message, stored) {
               let header = sprintf('The feedback: (%s)\nfor user: (%s)\nwith dialog: (%s)\n',
                 CJSON.stringify(message), message.user, message.callback_id);
-              
+
               let output = stored ?
                 debug('%s has been successfully saved! :)', header) :
                 debug('%s has not been saved! :(', header);
@@ -284,7 +372,7 @@ module.exports = function (controller, middleware) {
         }
       });
     }
-    // Request from a feedback form
+    // Feedback form submit
     else if (body.comment && tokens.length >= 3) {
       var message = {
         user: tokens[1],
@@ -294,14 +382,14 @@ module.exports = function (controller, middleware) {
           comment: body.comment.trim()
         }
       };
-      
+
       middleware.readContext(message.user, function (err, context) {
         if (context) {
-          database.handleSurveySubmit(bot, message, context, 
+          database.handleSurveySubmit(bot, message, context,
             function replyToUser(bot, message, stored) {
               let header = sprintf('The survey: (%s)\nfor user: (%s)\n',
                 CJSON.stringify(message), message.user);
-              
+
               let output = stored ?
                 debug('%s has been successfully saved! :)', header) :
                 debug('%s has not been saved! :(', header);
@@ -309,39 +397,6 @@ module.exports = function (controller, middleware) {
         }
       });
     }
-  });
-
-  controller.on('message_delivered', function (bot, message) {
-    //debug('"delivered": %s', JSON.stringify(message))
-
-    // message_id can be not ready yet
-    var message_id_ready = setInterval(() => {
-      let user = database.findUserOrMake(message.sender.id)
-      if (user && user.waiting_for_message &&
-        user.waiting_for_message.message_id) {
-
-        // The message_delivered event can respond to multiple messages,
-        // therefore we need to search for the matching one in the list.
-        let message_id = message.delivery.mids.find((mid) => {
-          return mid == user.waiting_for_message.message_id;
-        });
-
-        debug('"mid": %s', message_id);
-
-        // We found a matching message
-        if (message_id) {
-          // Forward the pending message
-          let forward_message = clone(user.waiting_for_message.forward_message);
-          user.waiting_for_message = null;
-          botConversationReply(bot, forward_message);
-        }
-
-        // There is a pending message, we stop this function
-        // to be executed in a time loop, even the pending
-        // message is not the one we were looking for.
-        clearInterval(message_id_ready);
-      }
-    }, 500);
   });
 
   // look for sticker, image and audio attachments

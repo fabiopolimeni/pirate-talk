@@ -71,7 +71,7 @@ module.exports = function (controller, middleware) {
       bot.reply(message, reply);
 
       // Store the dialog into user's history
-      database.addMessageToUserHistory(message);
+      database.addDialogToUserHistory(message);
 
       // At this point we need to check whether a jump is needed to continue with the conversation.
       // If it is needed, then upgrade Watson context and sand it back to continue to the next dialog.

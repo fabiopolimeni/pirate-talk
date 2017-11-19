@@ -5,7 +5,7 @@ module.exports = function (webserver, botkit, storage, middleware) {
   // Create the Botkit controller, which controls all instances of the bot.
   var controller = botkit.facebookbot({
       log: true,
-      debug: true,
+      //debug: true,
       storage: storage,
       require_delivery: true,
       verify_token: process.env.FACEBOOK_VERIFY_TOKEN,
