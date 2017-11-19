@@ -122,7 +122,7 @@ module.exports = function (controller, middleware) {
 
   function showSurveyDialog(bot, message) {
     let dialog = bot.createDialog('Open Feedback', message.callback_id, 'Submit')
-      .addTextarea('Leave your feedback below', 'comment', '', {
+      .addTextarea('Your feedback below', 'comment', '', {
         placeholder: 'Anything you would like to tell us'
       });
 
