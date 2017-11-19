@@ -45,13 +45,13 @@ module.exports = function (controller, middleware) {
           ':', message.watsonData.context.system.dialog_turn_counter),
         mrkdwn_in: ['text'],
         text: '',
-        actions: [{
+        actions: [/*{
           "name": "ok",
           "text": "Nice! :thumbsup:",
           "value": "good",
           "style": "primary",
           "type": "button"
-        }, {
+        }, */{
           "name": "soso",
           "text": "Improve :thumbsdown:",
           "value": "maybe",
@@ -81,7 +81,7 @@ module.exports = function (controller, middleware) {
         });
       }
 
-    }, (has_attachments) ? 1000 : 0);
+    }, (has_attachments) ? 500 : 0);
   }
 
   function botReplyToActionButton(bot, message, footer_msg) {
@@ -100,17 +100,17 @@ module.exports = function (controller, middleware) {
   // Show the dialog to allow the user to provide written feedback
   function showSuggestionDialog(bot, message) {
     let dialog = bot.createDialog('Leave your suggestions', message.callback_id, 'Submit')
-      .addSelect('What we need to improve', 'what', null, [{
-          label: 'Conversation flow',
-          value: 'flow'
-        },
-        {
-          label: 'Bot response',
-          value: 'response'
-        }
-      ], {
-        placeholder: 'Select One'
-      })
+      // .addSelect('What we need to improve', 'what', null, [{
+      //     label: 'Conversation flow',
+      //     value: 'flow'
+      //   },
+      //   {
+      //     label: 'Bot response',
+      //     value: 'response'
+      //   }
+      // ], {
+      //   placeholder: 'Select One'
+      // })
       .addTextarea('How can we improve', 'how', '', {
         placeholder: 'Write your comment here'
       });

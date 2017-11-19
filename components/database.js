@@ -96,9 +96,27 @@ module.exports = function (controller, middleware) {
       if (feedback) {
         // Incorporate user's suggestions
         feedback.suggestion = suggestion;
-        
+                
         // Re-store the updated feedback
-        _storeFeedback(storage, feedback, callback);
+        _storeFeedback(feedback, function (stored) {
+          if (callback && typeof callback === 'function') {
+            callback(stored);
+          }
+        });
+      }
+    });
+  }
+  
+  function _handleSuggestionSubmission(bot, message, context, callback) {
+    let submission = message.submission;
+    let suggestion = {
+      what: 'response', //submission.what,
+      how: submission.how
+    };
+
+    _updateUserFeedback(bot, message.callback_id, suggestion, function (stored) {
+      if (callback && typeof callback === 'function') {
+        callback(bot, message, stored);
       }
     });
   }
@@ -156,6 +174,22 @@ module.exports = function (controller, middleware) {
     }
   }
 
+  function _storeSurvey(bot, survey, callback) {
+    debug('"survey": %s', CJSON.stringify(survey));    
+
+    let storage = _getStorage();
+    storage.surveys.save(survey, function(err, id) {
+      if (err) {
+        console.error('Could not save survey %s', survey.id);
+        console.error('Error: %s', err);
+      }
+      
+      if (callback && typeof callback === 'function') {
+        callback(err ? false : true);
+      }
+    });
+  }
+  
   function _handleSurveySubmission(bot, message, context, callback) {
     debug('"context": ' + CJSON.stringify(context))
     let submission = message.submission;
@@ -172,37 +206,6 @@ module.exports = function (controller, middleware) {
     _storeSurvey(bot, survey, function (stored) {
       if (callback && typeof callback === 'function') {
         callback(bot, message, stored);
-      }
-    });
-  }
-
-  function _handleSuggestionSubmission(bot, message, context, callback) {
-    let submission = message.submission;
-    let suggestion = {
-      what: submission.what,
-      how: submission.how
-    };
-
-    debug('"submission": %s', CJSON.stringify(message, null, 2))
-    _updateUserFeedback(bot, message.callback_id, suggestion, function (stored) {
-      if (callback && typeof callback === 'function') {
-        callback(bot, message, stored);
-      }
-    });
-  }
-  
-  function _storeSurvey(bot, survey, callback) {
-    debug('"survey": %s', CJSON.stringify(survey));    
-
-    let storage = _getStorage();
-    storage.surveys.save(survey, function(err, id) {
-      if (err) {
-        console.error('Could not save survey %s', survey.id);
-        console.error('Error: %s', err);
-      }
-      
-      if (callback && typeof callback === 'function') {
-        callback(err ? false : true);
       }
     });
   }
