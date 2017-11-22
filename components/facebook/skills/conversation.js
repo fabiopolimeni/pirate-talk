@@ -11,6 +11,9 @@ module.exports = function (controller, middleware) {
   // Database handler
   var database = require('../../database')(controller, middleware);
 
+  // Speech services
+  var speech = require('../../audio/speech');
+
   // Convert actions to buttons
   function actionToButton(action, callback_id, conversation_id, user_id) {
     let button = {};
@@ -239,14 +242,19 @@ module.exports = function (controller, middleware) {
       });
     });
   });
-
-  // Handle common cases with  Watson conversation
-  controller.hears(['.*'], 'message_received', function (bot, message) {
+  
+  function handleConversationMessge(bot, message) {
+    console.log('"handled_message": %s', JSON.stringify(message));
     if (!checkOrIgnore(bot, message)) return;
     middleware.interpret(bot, message, function () {
       if (message.watsonError) {
         console.error(message.watsonError);
-        user.waiting_for_message = null;
+        
+        let user = database.findUserOrMake(message.user);
+        if (user) {
+          user.waiting_for_message = null;
+        }
+        
         bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
       } else {
         bot.startTyping(message, function () {});
@@ -254,12 +262,22 @@ module.exports = function (controller, middleware) {
         bot.stopTyping(message, function () {});
       }
     });
+  }
+
+  // Handle common cases with  Watson conversation
+  controller.hears(['.*'], 'message_received', function (bot, message) {
+    handleConversationMessge(bot, message);
+  });
+  
+  controller.on('audio_transcript', function(bot, message) {
+    handleConversationMessge(bot, message)
   });
 
   // Handle button postbacks
   controller.hears(['.*'], 'facebook_postback', function (bot, message) {
     debug('"postback": %s', JSON.stringify(message));
-
+    if (!checkOrIgnore(bot, message)) return;
+    
     // Since events handler aren't processed by middleware and have no watsonData 
     // attribute, the context has to be extracted from the current user stored data.
     middleware.readContext(message.user, function (err, context) {
@@ -280,17 +298,6 @@ module.exports = function (controller, middleware) {
 
   controller.on('message_delivered', function (bot, message) {
     debug('"delivered": %s', JSON.stringify(message))
-
-    // // message_id can be not ready yet
-    // var message_id_ready = setInterval(() => {
-
-
-    //     // There is a pending message, we stop this function
-    //     // to be executed in a time loop, even the pending
-    //     // message is not the one we were looking for.
-    //     clearInterval(message_id_ready);
-    //   }
-    // }, 200);
 
     let user = database.findUserOrMake(message.sender.id)
     if (user && user.waiting_for_message && user.waiting_for_message.final_message_id) {
@@ -390,9 +397,12 @@ module.exports = function (controller, middleware) {
               let header = sprintf('The survey: (%s)\nfor user: (%s)\n',
                 CJSON.stringify(message), message.user);
 
-              let output = stored ?
-                debug('%s has been successfully saved! :)', header) :
+              if (stored) {
+                debug('%s has been successfully saved! :)', header)
+              }
+              else {
                 debug('%s has not been saved! :(', header);
+              }
             });
         }
       });
@@ -402,7 +412,6 @@ module.exports = function (controller, middleware) {
   // look for sticker, image and audio attachments
   // capture them, and fire special events
   controller.on('message_received', function (bot, message) {
-
     debug('"received": %s', JSON.stringify(message))
     if (!message.text) {
       if (message.sticker_id) {
@@ -413,7 +422,6 @@ module.exports = function (controller, middleware) {
         return false;
       }
     }
-
   });
 
   controller.on('sticker_received', function (bot, message) {
@@ -425,7 +433,38 @@ module.exports = function (controller, middleware) {
   });
 
   controller.on('audio_received', function (bot, message) {
-    bot.reply(message, 'I heard that!!');
+    debug('"audio_data": %s', JSON.stringify(message))
+
+    let data = message.attachments[0];
+    speech.tts(data.payload.url, (err, transcript) => {
+
+      if (err) {
+        return bot.reply(message, 
+          "Sorry, I couldn't hear you very well, can you say it again please?");
+      }
+
+      let reroute_message = clone(message);
+
+      // We need to remove the attachments from the message
+      // received substituting it with the transcript text. 
+      if (reroute_message.message.attachments) {
+        reroute_message.message.attachments = undefined;
+        reroute_message.message.text = transcript;
+      }
+
+      if (reroute_message.attachments) {
+        reroute_message.attachments = undefined;
+        reroute_message.text = transcript;
+      }
+
+      if (reroute_message.raw_message.message.attachments) {
+        reroute_message.raw_message.message.attachments = undefined;
+        reroute_message.raw_message.message.text = transcript;
+      }
+
+      debug('"reroute": %s', JSON.stringify(reroute_message))
+      controller.trigger('audio_transcript', [bot, reroute_message]);
+    });
   });
 
 }
