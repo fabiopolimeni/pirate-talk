@@ -2,7 +2,6 @@ require('dotenv').load()
 
 const clone = require('clone');
 const debug = require('debug')('pirate-talk:facebook-conversation');
-const merge = require('deepmerge');
 const CJSON = require('circular-json');
 const sprintf = require('sprintf-js').sprintf;
 
@@ -436,11 +435,14 @@ module.exports = function (controller, middleware) {
     debug('"audio_data": %s', JSON.stringify(message))
 
     let data = message.attachments[0];
-    speech.tts(data.payload.url, (err, transcript) => {
+    speech.stt(data.payload.url, (err, transcript) => {
 
       if (err) {
         return bot.reply(message, 
           "Sorry, I couldn't hear you very well, can you say it again please?");
+      }
+      else {
+        bot.reply(message, transcript.text);
       }
 
       let reroute_message = clone(message);
@@ -449,17 +451,17 @@ module.exports = function (controller, middleware) {
       // received substituting it with the transcript text. 
       if (reroute_message.message.attachments) {
         reroute_message.message.attachments = undefined;
-        reroute_message.message.text = transcript;
+        reroute_message.message.text = transcript.text;
       }
 
       if (reroute_message.attachments) {
         reroute_message.attachments = undefined;
-        reroute_message.text = transcript;
+        reroute_message.text = transcript.text;
       }
 
       if (reroute_message.raw_message.message.attachments) {
         reroute_message.raw_message.message.attachments = undefined;
-        reroute_message.raw_message.message.text = transcript;
+        reroute_message.raw_message.message.text = transcript.text;
       }
 
       debug('"reroute": %s', JSON.stringify(reroute_message))
