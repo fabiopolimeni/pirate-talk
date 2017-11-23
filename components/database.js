@@ -124,7 +124,7 @@ module.exports = function (controller, middleware) {
   function _saveAndRespondToUserFeedback(bot, message, context, callback) {
     // Retrieve the turn id
     let ids = message.callback_id.split(':', 2);
-    let callback_conv_id = ids[0];
+    //let callback_conv_id = ids[0];
     let callback_turn_id = ids[1];
 
     let user = _findUserOrMake(message.user, false);

@@ -17,8 +17,8 @@ module.exports = function (webserver, botkit, storage, middleware) {
   var bot = controller.spawn({});
   
   // Import all the pre-defined routes that are present in /components/routes
-  var normalizedPath = require("path").join(__dirname, "routes");
-  require("fs").readdirSync(normalizedPath).forEach(function (file) {
+  let routes_path = require("path").join(__dirname, "routes");
+  require("fs").readdirSync(routes_path).forEach(function (file) {
     debug('Setting up route ' + file);
     require("./routes/" + file)(webserver, controller, bot);
   });
@@ -32,10 +32,13 @@ module.exports = function (webserver, botkit, storage, middleware) {
   // Send an onboarding message when a user activates the bot
   require('./onboarding.js')(controller);
 
+  // Database handler
+  var database = require('../../database')(controller, middleware);
+
   // Load slack specific skills
-  var normalizedPath = require("path").join(__dirname, "./skills");
-  require("fs").readdirSync(normalizedPath).forEach(function (file) {
-    require("./skills/" + file)(controller, middleware);
+  let skills_path = require("path").join(__dirname, "./skills");
+  require("fs").readdirSync(skills_path).forEach(function (file) {
+    require("./skills/" + file)(controller, middleware, database);
   });
 
   return {
