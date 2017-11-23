@@ -6,7 +6,7 @@ const debug = require('debug')('pirate-talk:facebook-talking');
 module.exports = function (controller, middleware, database) {
 
   // Get conversation manager
-  var conv = require('./conversation');
+  var conv = require('./utils/conversation')(database);
 
   controller.on('audio_transcript', function (bot, message) {
     if (!conv.checkMessage(bot, message)) return;

@@ -8,7 +8,7 @@ const sprintf = require('sprintf-js').sprintf;
 module.exports = function (controller, middleware, database) {
 
   // Conversation manager
-  var conv = require('./conversation');
+  var conv = require('./utils/conversation')(database);
 
   // Handle reset special case
   controller.hears(['reset'], 'message_received', function (bot, message) {
