@@ -46,7 +46,7 @@ module.exports = function (controller, middleware, database) {
           controller.trigger('audio_transcript', [bot, transcript_message]);
       }
 
-    });
+    }
   });
   
 }
