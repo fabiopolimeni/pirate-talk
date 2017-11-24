@@ -113,12 +113,12 @@ module.exports = function (database) {
       };
 
       // Before creating a pending message, remove the attachments,
-      // otherwise the function will keep calling itself indefinitely.
+      // otherwise the function will keep calling itself indefinitely
       let pending_message = clone(message);
       pending_message.watsonData.output.action.attachments = null;
 
       // We have a message to forward, once
-      // the source one has been delivered.
+      // the source one has been delivered
       user.waiting_for_message.forward_message = pending_message;
 
       // Because messages with attachments can take time to be delivered,
@@ -142,7 +142,7 @@ module.exports = function (database) {
       // No feedback request if specifically removed
       let feedback_request = !(message.watsonData.output.action && message.watsonData.output.action.no_feedback);
 
-      // Request for a feedback.
+      // Request for a feedback
       if (feedback_request) {
         let payload_id = sprintf('%s.%s.%s.%s', 'feedback',
           message.user, message.watsonData.context.conversation_id,
@@ -225,7 +225,7 @@ module.exports = function (database) {
   }
   
   function handleConversationMessge(bot, message) {
-    console.log('"handled_message": %s', JSON.stringify(message));
+    debug('"handled_message": %s', JSON.stringify(message));
     
     if (message.watsonError) {
       console.error(message.watsonError);

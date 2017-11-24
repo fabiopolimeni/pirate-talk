@@ -1,13 +1,13 @@
 require('dotenv').load()
 
-var debug = require('debug')('pirate-talk:database');
-var merge = require('deepmerge');
-var CJSON = require('circular-json');
-var sprintf = require('sprintf-js').sprintf;
+const debug = require('debug')('pirate-talk:database');
+const merge = require('deepmerge');
+const CJSON = require('circular-json');
+const sprintf = require('sprintf-js').sprintf;
 
 var mongo = require('botkit-storage-mongo')({
   mongoUri: process.env.MONGO_URI, tables: [
-    'workspaces', 'feedbacks', 'surveys'
+    'workspaces', 'feedbacks', 'surveys', 'transcripts'
   ]
 });
 
@@ -82,8 +82,9 @@ module.exports = function (controller, middleware) {
   }
   
   function _updateUserFeedback(bot, id, suggestion, callback) {
-    debug('"suggestion": %s', CJSON.stringify(suggestion));
     if (!suggestion) return;
+
+    debug('"suggestion": %s', CJSON.stringify(suggestion));
 
     // Retrieve the feedback from the database/filesystem
     let storage = _getStorage();
@@ -108,6 +109,8 @@ module.exports = function (controller, middleware) {
   }
   
   function _handleSuggestionSubmission(bot, message, context, callback) {
+    if (!context) return;
+
     let submission = message.submission;
     let suggestion = {
       what: 'response', //submission.what,
@@ -122,6 +125,8 @@ module.exports = function (controller, middleware) {
   }
 
   function _saveAndRespondToUserFeedback(bot, message, context, callback) {
+    if (!context) return;
+
     // Retrieve the turn id
     let ids = message.callback_id.split(':', 2);
     //let callback_conv_id = ids[0];
@@ -180,7 +185,7 @@ module.exports = function (controller, middleware) {
     let storage = _getStorage();
     storage.surveys.save(survey, function(err, id) {
       if (err) {
-        console.error('Could not save survey %s', survey.id);
+        console.error('Could not save survey %s', id);
         console.error('Error: %s', err);
       }
       
@@ -191,6 +196,8 @@ module.exports = function (controller, middleware) {
   }
   
   function _handleSurveySubmission(bot, message, context, callback) {
+    if (!context) return;
+    
     debug('"context": ' + CJSON.stringify(context))
     let submission = message.submission;
     let survey = {
@@ -207,6 +214,98 @@ module.exports = function (controller, middleware) {
       if (callback && typeof callback === 'function') {
         callback(bot, message, stored);
       }
+    });
+  }
+
+  function _storeTranscript(bot, transcript, callback) {
+    debug('"transcript": %s', CJSON.stringify(transcript));
+
+    let storage = _getStorage();
+    storage.transcripts.save(transcript, function(err, id) {
+      if (err) {
+        console.error('Could not save transcript %s', id);
+        console.error('Error: %s', err);
+      }
+      
+      if (callback && typeof callback === 'function') {
+        callback(err ? false : true, transcript);
+      }
+    });
+  }
+
+  function _getTranscript(id, callback) {
+    let storage = _getStorage();
+    storage.transcripts.get(id, function(err, transcript) {
+      if (err || !transcript) {
+        console.warn('Warn: could not retrieve transcript %s', id);
+        console.error('Error: %s', err);
+      }
+
+      if (callback && typeof callback === 'function') {
+        callback(err, transcript);
+      }
+    })
+  }
+
+  function _updateTranscript(bot, id, text, callback) {
+    if (!text) return;
+
+    _getTranscript(id, function(err, transcript) {
+      if (transcript) {
+        // Update the text and the modified field.
+        transcript.text = text;
+        transcript.modified = true;
+                
+        // Re-store the updated transcript
+        _storeTranscript(transcript, function (stored, transcript) {
+          if (callback && typeof callback === 'function') {
+            callback(stored, transcript);
+          }
+        });
+      }
+      else {
+        callback(false);
+      }
+    });
+  }
+
+  function _handleCorrectionSubmission(bot, message, context, callback) {
+    if (!context) return;
+
+    // Needed to find out what is the transcript id to update
+     let transcript_id = sprintf('%s:%s',
+      message.submission.conversation,
+      message.submission.turn);
+
+    _updateTranscript(bot, transcript_id, message.submission.text,
+      function (updated, transcript) {
+        if (callback && typeof callback === 'function') {
+          callback(bot, message, updated, transcript);
+        }
+    });
+  }
+
+  function _saveUserAudioTranscript(bot, message, context, callback) {
+    if (!context) return;
+
+    let submission = message.submission;
+    let transcript = {
+      id: sprintf('%s:%s', submission.conversation, submission.turn),
+      version: context.version,
+      frontend: bot.type,
+      level: context.language_level,
+      conversation: context.conversation_id,
+      workspace: process.env.WATSON_WORKSPACE_ID,
+      text: submission.text,
+      url: submission.url,
+      confidence: submission.confidence,
+      modified: false
+    }
+
+    _storeTranscript(bot, transcript, function (stored, transcript) {
+        if (callback && typeof callback === 'function') {
+          callback(bot, message, stored, transcript);
+        }
     });
   }
   
@@ -234,11 +333,16 @@ module.exports = function (controller, middleware) {
     storeFeedback: _storeFeedback,
     updateFeedback: _updateUserFeedback,
     storeSurvey: _storeSurvey,
+    storeTranscript: _storeTranscript,
+    updateTranscript: _updateTranscript,
+    getTranscript: _getTranscript,
 
     /* High level utils */
-    handleFeedbackSubmit: _saveAndRespondToUserFeedback,
+    makeAndStoreFeedback: _saveAndRespondToUserFeedback,
     handleSuggestionSubmit: _handleSuggestionSubmission,
     handleSurveySubmit: _handleSurveySubmission,
+    makeAndStoreTranscript: _saveUserAudioTranscript,
+    handleTranscriptSubmit: _handleCorrectionSubmission,
 
     /* Middleware APIs */
     sendContinueToken: _sendReadyToContinueToken,
