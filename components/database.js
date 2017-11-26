@@ -207,7 +207,8 @@ module.exports = function (fs_storage, middleware) {
       version: context.version,
       frontend: bot.type,
       conversation: context.conversation_id,
-      workspace: process.env.WATSON_WORKSPACE_ID
+      workspace: process.env.WATSON_WORKSPACE_ID,
+      date: (new Date()).toString()
     }
 
     _storeSurvey(bot, survey, function (stored) {
@@ -301,7 +302,8 @@ module.exports = function (fs_storage, middleware) {
       url: submission.url,
       confidence: submission.confidence,
       seconds: submission.seconds,
-      modified: false
+      modified: false,
+      date: (new Date()).toString()
     }
 
     _storeTranscript(bot, transcript, function (stored, transcript) {

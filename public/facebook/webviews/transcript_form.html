@@ -98,7 +98,7 @@
               audio_source.attr('src', transcript.url)
 
               var transcrit_area = $('#transcript_textarea')
-              transcrit_area.attr('placeholder', transcript.text)
+              transcrit_area.text(transcript.text)
             })
             .fail(function (error) {
               console.error("Can't get the transcript: %s", payload_id)
