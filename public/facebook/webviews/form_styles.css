@@ -104,7 +104,7 @@
   resize: none;
   padding: 2% 3% 2% 3%;
   font-family: Arial, Helvetica, sans-serif;
-  height: 350px;
+  height: 250px;
   font-size: 280%;
   line-height: 100%;
   color: #000000;
@@ -126,4 +126,26 @@
 .form-style-7 input[type="button"]:hover {
   background: #6B9FFF;
   color: #fff;
+}
+
+/* Give the player a height & width of 0. Otherwise the player is visible on mobile devices (tested on iPhone 5). */
+#player {
+  height: 0;
+  width: 0
+}
+
+.speaker {
+  background-image: url('play.png');
+  background-repeat: no-repeat;
+  background-size: 10%;
+  /*background-position: 100% 0;*/
+  cursor: pointer;
+  display: block;
+  position: relative;
+  padding: 5%;
+}
+
+.speakerplay {
+  /*background-position: 0 0;*/
+  background-image: url('pause.png');
 }

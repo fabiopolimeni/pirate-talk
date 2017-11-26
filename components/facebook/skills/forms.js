@@ -81,6 +81,7 @@ module.exports = function (controller, middleware, database) {
       });
     }
     else if (action_query == 'transcript' && tokens.length >= 4) {
+
       var transcript_message = {
         user: tokens[1],
         channel: tokens[1],
@@ -100,9 +101,13 @@ module.exports = function (controller, middleware, database) {
               console.warn("Couldn't update transcript %s", transcript.url)
             }
 
-            // Trigger an audio transcript message
-            transcript_message.text = transcript_message.submission.text;
-            controller.trigger('audio_transcript', [bot, transcript_message]);
+            // For sanity check, and that is the user can receive a feedback,
+            // we are going to show the corrected transcript from the user.
+            transcript_message.text = transcript_message.submission.text
+            bot.reply(transcript_message, {text: transcript_message.text}, (err, sent) => {
+              // Trigger an audio transcript message
+              controller.trigger('audio_transcript', [bot, transcript_message]);
+            })
           });
       });
     }

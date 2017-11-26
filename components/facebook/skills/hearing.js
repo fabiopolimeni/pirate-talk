@@ -47,7 +47,7 @@ module.exports = function (controller, middleware, database) {
 
         user.waiting_for_message = null;
         if (forward_message) {
-          conv.sendMessageReplay(bot, forward_message, user);
+          conv.sendMessageReply(bot, forward_message);
         }
       }
     }

@@ -5,6 +5,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const request = require('request');
 const sprintf = require('sprintf-js').sprintf;
 const md5 = require('md5');
+const debug = require('debug')('pirate-talk:audio-converter');
 
 module.exports = {
   
@@ -101,10 +102,11 @@ module.exports = {
           response
             .on('data', function(chunk) {
               buffer_length += chunk.length;
-              console.log('HTTP read %s bytes of data', chunk.length)
+              debug('HTTP read %s bytes of data', chunk.length)
             })
             .on('end', function() {
-              console.log('HTTP response ended, total bytes read %s', buffer_length)
+              console.log('HTTP total %s bytes read from %s',
+                buffer_length, input.uri)
             })
             .on('error', function(err) {
               if (callback && typeof callback === 'function') {
