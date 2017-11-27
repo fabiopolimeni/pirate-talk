@@ -10,17 +10,12 @@ module.exports = function (controller, middleware, database) {
   // Handle button postbacks
   controller.hears(['.*'], 'facebook_postback', function (bot, message) {
     debug('"postback": %s', JSON.stringify(message));
+    if (!conv.checkMessage(bot, message)) return;
 
     // Since events handler aren't processed by middleware and have no watsonData 
     // attribute, the context has to be extracted from the current user stored data.
     middleware.readContext(message.user, function (err, context) {
-      if (err) {
-        return console.error('Error in postback: %s', err);
-      }
-
-      if (!context || !message.text) {
-        return console.error('Error in postback: No context or message could be retrieved');
-      }
+      if (!context || !message.text) return;
 
       let query = message.text.split('.');
 
@@ -28,7 +23,7 @@ module.exports = function (controller, middleware, database) {
       if (query[0] == 'pick_language_level') {
         let level = query[1];
         database.sendContinueToken(bot, message, { language_level: level }, () => {
-          conv.sendMessageReply(bot, message);
+          conv.sendMessageReplay(bot, message, database.findUserOrMake(message.user));
         });
       }
       // Handle transcript accepted
@@ -38,7 +33,7 @@ module.exports = function (controller, middleware, database) {
         // let turn = query[2];
         // let transcript_id = sprintf('transcript.%s:%s', conversation, turn);
 
-        let user = database.findUserOrMake(message.user);
+        let user = database.findUserOfMake(message.user);
         if (user && user.transcript) {
           
           let transcript_message = {
@@ -49,8 +44,9 @@ module.exports = function (controller, middleware, database) {
           }
           
           controller.trigger('audio_transcript', [bot, transcript_message]);
-        }
       }
-    });
+
+    }
   });
+  
 }
