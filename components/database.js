@@ -61,7 +61,8 @@ module.exports = function (fs_storage, middleware) {
       turn_id: message.watsonData.context.system.dialog_turn_counter,
       conversation_id: message.watsonData.context.conversation_id,
       user_id: message.user,
-      date: (new Date()).toString()
+      date: (new Date()).toString(),
+      timestamp: Date.now()
     });
   }
   
@@ -208,7 +209,8 @@ module.exports = function (fs_storage, middleware) {
       frontend: bot.type,
       conversation: context.conversation_id,
       workspace: process.env.WATSON_WORKSPACE_ID,
-      date: (new Date()).toString()
+      date: (new Date()).toString(),
+      timestamp: Date.now()
     }
 
     _storeSurvey(bot, survey, function (stored) {
@@ -303,7 +305,8 @@ module.exports = function (fs_storage, middleware) {
       confidence: submission.confidence,
       seconds: submission.seconds,
       modified: false,
-      date: (new Date()).toString()
+      date: (new Date()).toString(),
+      timestamp: Date.now()
     }
 
     _storeTranscript(bot, transcript, function (stored, transcript) {
