@@ -8,7 +8,7 @@ var sprintf = require('sprintf-js').sprintf;
 module.exports = function (controller, middleware) {
 
   // Database handler
-  var database = require('../../database')(controller, middleware);
+  var database = require('../../database')(controller.storage, middleware);
 
   // Main reply function, where all the logic to
   // interact with watson conversation is processed.

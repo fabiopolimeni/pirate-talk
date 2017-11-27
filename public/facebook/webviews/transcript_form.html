@@ -2,63 +2,134 @@
 <html>
 
 <head>
-  <title>Leave a comment</title>
+  <title>Audio transcription</title>
   <link rel="stylesheet" href="./form_styles.css" />
+  <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.2.1.min.js"></script>
 </head>
 
 <body>
-<script type="text/javascript">
-  (function (d, s, id) {
-    var js, fjs = d.getElementsByTagName(s)[0];
-    if (d.getElementById(id)) {
-      return;
+  <script type="text/javascript">
+    (function (d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) {
+        return;
+      }
+      js = d.createElement(s);
+      js.id = id;
+      js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'Messenger'));
+
+    /* Global variable for a timer. When the mouse is hovered over the speaker it will start playing after hovering for 1 second, if less than 1 second it won't play (incase you accidentally hover over the speaker) */
+    var mouseovertimer;
+
+    /* Global variable for the audio's status (off or on). It's a bit crude but it works for determining the status. */
+    var audiostatus = 'off';
+
+    function initPlayerButton() {
+      /* Get the audio from the player (using the player's ID), the [0] is necessary */
+      var getaudio = $('#player')[0];
+      if (!getaudio) return;
+
+      $(document).on('click', '.speaker', function () {
+        /* Touchend is necessary for mobile devices, click alone won't work */
+        if (!$('.speaker').hasClass("speakerplay")) {
+          if (audiostatus == 'off') {
+            $('.speaker').addClass('speakerplay');
+            getaudio.load();
+            getaudio.play();
+            window.clearTimeout(mouseovertimer);
+            audiostatus = 'on';
+            return false;
+          } else if (audiostatus == 'on') {
+            $('.speaker').addClass('speakerplay');
+            getaudio.play()
+          }
+        } else if ($('.speaker').hasClass("speakerplay")) {
+          getaudio.pause();
+          $('.speaker').removeClass('speakerplay');
+          window.clearTimeout(mouseovertimer);
+          audiostatus = 'on';
+        }
+      });
+
+      $('#player').on('ended', function () {
+        $('.speaker').removeClass('speakerplay');
+        /*When the audio has finished playing, remove the class speakerplay*/
+        audiostatus = 'off';
+        /*Set the status back to off*/
+      });
     }
-    js = d.createElement(s);
-    js.id = id;
-    js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
-    fjs.parentNode.insertBefore(js, fjs);
-  }(document, 'script', 'Messenger'));
 
-  function submitForm() {
-    document.getElementById("transcript_form").submit();
-    MessengerExtensions.requestCloseBrowser(function success() {
-      // webview closed
-    }, function error(err) {
-      // an error occurred
-    });
-  }
-
-  window.extAsyncInit = function () {
-    //alert('Messenger Extensions JS SDK is done loading')
-    var payload_id = window.location.href.split('?')[1];
-
-    // If window.name == facebook_ref, for some unknown
-    // reason the url ends with a '=' character.
-    payload_id = payload_id.split('=')[0]
-
-    //document.getElementById("comment_label").innerHTML = payload_id
-
-    // Add the payload_id to one of the form hidden input,
-    // that is we can get it when the form is submitted.
-    if (payload_id) {
-      var payload_input = document.getElementById("payload");
-      payload_input.value = payload_id
+    function submitForm() {
+      document.getElementById("transcript_form").submit();
+      MessengerExtensions.requestCloseBrowser(function success() {
+        // webview closed
+      }, function error(err) {
+        // an error occurred
+      });
     }
-  };
-</script>
-<form action="/facebook/form" method="post" id="transcript_form" class="form-style-7">
-  <input id="payload" type="hidden" name="payload_id" value="">
-  <ul>
-    <li>
-      <label id="comment_label" for="comment">TYPE WHAT YOU ACTUALLY SAID</label>
-      <textarea id="comment_textarea" name="transcript"></textarea>
-      <span>Your feedback will save 0.6 puppies from mal-nutrition, so give generously</span>
-    </li>
-    <li>
-      <input type="submit" value="Submit" onclick="submitForm()">
-    </li>
-  </ul>
-</form>
+
+    window.extAsyncInit = function () {
+      //alert('Messenger Extensions JS SDK is done loading')
+      var payload_id = window.location.href.split('?')[1];
+
+      // Add the payload_id to one of the form hidden input,
+      // that is we can get it when the form is submitted.
+      if (payload_id) {
+
+        // If window.name == facebook_ref, for some unknown
+        // reason the url ends with a '=' character.
+        payload_id = payload_id.split('=')[0]
+
+        var payload_input = document.getElementById("payload")
+        payload_input.value = payload_id
+
+        var query = payload_id.split('.')
+        if (query.length >= 4) { // Request the transcript to server
+          $.getJSON(window.location.origin + '/facebook/transcript', {
+              action: query[0],
+              uesr: query[1],
+              conversation: query[2],
+              turn: query[3]
+            })
+            .done(function (transcript) {
+              var audio_source = $('#transcript_audio_source')
+              audio_source.attr('src', transcript.url)
+
+              var transcrit_area = $('#transcript_textarea')
+              transcrit_area.text(transcript.text)
+            })
+            .fail(function (error) {
+              console.error("Can't get the transcript: %s", payload_id)
+            });
+        }
+      }
+
+      // Call the player button initialisation
+      initPlayerButton()
+    };
+  </script>
+  <audio id="player">
+    <source id="transcript_audio_source" src=""
+      type="audio/mp4" />
+  </audio>
+
+  <form action="/facebook/form" method="post" name="transcript_message" id="transcript_form" class="form-style-7">
+    <input id="payload" type="hidden" name="payload_id" value="">
+    <ul>
+      <li>
+        <label id="transcript_label" for="transcript">TYPE WHAT YOU ACTUALLY SAID</label>
+        <textarea id="transcript_textarea" name="transcript"></textarea>
+        <div class="speaker"></div>
+        <span>Your help will save 0.6 puppies from mal-nutrition, so please give generously</span>
+      </li>
+      <li>
+        <input type="submit" value="Submit" onclick="submitForm()">
+      </li>
+    </ul>
+  </form>
+
 </body>
 
 </html>

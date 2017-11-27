@@ -11,7 +11,7 @@ var mongo = require('botkit-storage-mongo')({
   ]
 });
 
-module.exports = function (controller, middleware) {
+module.exports = function (fs_storage, middleware) {
   
   // Keep an array of users in order to reduce concurrency
   // as much as possible when storing history information.
@@ -207,7 +207,8 @@ module.exports = function (controller, middleware) {
       version: context.version,
       frontend: bot.type,
       conversation: context.conversation_id,
-      workspace: process.env.WATSON_WORKSPACE_ID
+      workspace: process.env.WATSON_WORKSPACE_ID,
+      date: (new Date()).toString()
     }
 
     _storeSurvey(bot, survey, function (stored) {
@@ -253,11 +254,12 @@ module.exports = function (controller, middleware) {
     _getTranscript(id, function(err, transcript) {
       if (transcript) {
         // Update the text and the modified field.
+        transcript.original = transcript.text;
         transcript.text = text;
         transcript.modified = true;
                 
         // Re-store the updated transcript
-        _storeTranscript(transcript, function (stored, transcript) {
+        _storeTranscript(bot, transcript, function (stored, transcript) {
           if (callback && typeof callback === 'function') {
             callback(stored, transcript);
           }
@@ -290,7 +292,7 @@ module.exports = function (controller, middleware) {
 
     let submission = message.submission;
     let transcript = {
-      id: sprintf('%s:%s', submission.conversation, submission.turn),
+      id: sprintf('%s:%s', context.conversation_id, context.system.dialog_turn_counter),
       version: context.version,
       frontend: bot.type,
       level: context.language_level,
@@ -299,7 +301,9 @@ module.exports = function (controller, middleware) {
       text: submission.text,
       url: submission.url,
       confidence: submission.confidence,
-      modified: false
+      seconds: submission.seconds,
+      modified: false,
+      date: (new Date()).toString()
     }
 
     _storeTranscript(bot, transcript, function (stored, transcript) {
@@ -320,7 +324,7 @@ module.exports = function (controller, middleware) {
 
   function _getStorage() {
     // Pick the right storage system database of filesystem
-    return process.env.STORE_FEEDBACK_ON_FS ? controller.storage : mongo;
+    return process.env.STORE_FEEDBACK_ON_FS ? fs_storage : mongo;
   }
 
   return {

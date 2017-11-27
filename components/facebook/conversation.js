@@ -67,7 +67,7 @@ module.exports = function (database) {
         template_type: 'button',
         text: reply_text,
         buttons: [{
-          title: 'Improve this',
+          title: 'Need to Improve',
           type: 'web_url',
           messenger_extensions: true,
           url: sprintf('%s/facebook/webviews/feedback_form.html?%s',
@@ -80,7 +80,8 @@ module.exports = function (database) {
     return attachment;
   }
 
-  function sendMessageToUser(bot, message, user) {
+  function sendMessageToUser(bot, message, callback) {
+    var user = database.findUserOrMake(message.user)
     if (!user) return;
 
     // Create a waiting_for_message object.
@@ -131,6 +132,9 @@ module.exports = function (database) {
       }, (err, sent) => {
         if (!(sent && user.waiting_for_message)) return;
         user.waiting_for_message.final_message_id = sent.message_id;
+        if (callback && typeof callback === 'function') {
+          callback(sent)
+        }
       });
     }
     // If no attachments need to be processed, then
@@ -156,6 +160,9 @@ module.exports = function (database) {
         }, (err, sent) => {
           if (!(sent && user.waiting_for_message)) return;
           user.waiting_for_message.final_message_id = sent.message_id;
+          if (callback && typeof callback === 'function') {
+            callback(sent)
+          }
         })
       }
       // Answer with no feedback request
@@ -165,6 +172,9 @@ module.exports = function (database) {
         }, (err, sent) => {
           if (!(sent && user.waiting_for_message)) return;
           user.waiting_for_message.final_message_id = sent.message_id;
+          if (callback && typeof callback === 'function') {
+            callback(sent)
+          }
         })
       }
 
@@ -246,6 +256,6 @@ module.exports = function (database) {
   return {
     handleReceivedMessage: handleConversationMessge,
     checkMessage: checkOrIgnore,
-    sendMessageReplay: sendMessageToUser
+    sendMessageReply: sendMessageToUser
   }
 }

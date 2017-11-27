@@ -23,6 +23,7 @@ let AzureSpeech = function () {
       if (err) throw err;
       
       _auth_token = body;
+      console.log('auth-token=%s', _auth_token);
       if (callback && typeof callback === 'function') {
         callback(_auth_token);
       }
@@ -35,7 +36,7 @@ let AzureSpeech = function () {
       throw sprintf("Invalid authorization token!");
     }
 
-    console.log(sprintf('Transfering %d bytes, summing up to %.2f sec.',
+    console.log(sprintf('Transferring %d bytes,audio length %.2f sec.',
       buffer.length, buffer.length / 16000 / 2));
     const options = {
       url: 'https://speech.platform.bing.com/speech/recognition/conversation/cognitiveservices/v1?language=en-us&format=detailed',
@@ -98,6 +99,7 @@ let AzureSpeech = function () {
 
         // Notify the requested the final result
         if (callback && typeof callback === 'function') {
+          transcript.seconds = buffer.length / 16000 / 2;
           return callback(null, transcript);
         }
       }
@@ -130,7 +132,6 @@ let AzureSpeech = function () {
             // Authorization token is not ready yet,
             // we need to retrieve it before continuing.
             _acquireAuthToken((token) => {
-              console.log('auth-token=%s', token);
               _recognize(result.data, callback);
             })
           }
@@ -152,7 +153,7 @@ let AzureSpeech = function () {
   // Auth tokens expire within 10 minutes,
   // then, refresh every: ms * sec * min.
   const interval_ms = 1000 * 60 * 8;
-  //setInterval(_acquireAuthToken, interval_ms);
+  setInterval(_acquireAuthToken, interval_ms);
 
   return {
     stt: _stt,

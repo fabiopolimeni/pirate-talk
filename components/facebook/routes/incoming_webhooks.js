@@ -1,7 +1,7 @@
-var debug = require('debug')('botkit:incoming_webhooks');
-const CJSON = require('circular-json');
+const debug = require('debug')('botkit:facebook-webhooks');
+const sprintf = require('sprintf-js').sprintf;
 
-module.exports = function (webserver, controller, bot) {
+module.exports = function (webserver, controller, bot, database) {
 
     debug('Configured POST /facebook/receive url for receiving events');
     webserver.post('/facebook/receive', function (req, res) {
@@ -24,6 +24,28 @@ module.exports = function (webserver, controller, bot) {
           res.send('OK');
         }
       }
+    });
+
+    debug('Configured GET /facebook/transcript url for retrieving an audio transcript');
+    webserver.get('/facebook/transcript', function (req, res) {
+      console.log('"query": %s', JSON.stringify(req.query));
+
+      if (!req.query || !req.query.conversation || !req.query.turn) {
+        // Bad request: Invalid query
+        return res.status(400)
+      }
+
+      let transcript_id = sprintf('%s:%s', req.query.conversation, req.query.turn)
+      database.getTranscript(transcript_id,
+        function receivedTranscript(err, transcript) {
+          if (err) {
+            // Not found: Transcript doesn't exist
+            return res.status(404);
+          }
+
+          res.status(200);
+          res.json(transcript);
+        })
     });
 
     debug('Configured POST /facebook/form url for receiving forms submission');
