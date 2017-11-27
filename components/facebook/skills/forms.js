@@ -1,6 +1,5 @@
 require('dotenv').load()
 
-const clone = require('clone');
 const debug = require('debug')('pirate-talk:facebook-hearing');
 const CJSON = require('circular-json');
 const sprintf = require('sprintf-js').sprintf;
