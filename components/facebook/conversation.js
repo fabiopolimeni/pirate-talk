@@ -67,7 +67,7 @@ module.exports = function (database) {
         template_type: 'button',
         text: reply_text,
         buttons: [{
-          title: 'Need to Improve',
+          title: 'Help us improving',
           type: 'web_url',
           messenger_extensions: true,
           url: sprintf('%s/facebook/webviews/feedback_form.html?%s',
@@ -139,7 +139,7 @@ module.exports = function (database) {
     }
     // If no attachments need to be processed, then
     // proceed to respond with a simple text message.
-    // Send reply to the user, text can't be empty
+    // Message reply text can't be empty
     else if (message.watsonData.output.text.length > 0) {
       let text_message = message.watsonData.output.text.join('\n')
 

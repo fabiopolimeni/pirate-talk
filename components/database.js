@@ -30,6 +30,7 @@ module.exports = function (fs_storage, middleware) {
         id: id,
         latest_button_message: null,
         waiting_for_message: null,
+        turn_bias: 0,
         history: []
       };
       
@@ -50,10 +51,43 @@ module.exports = function (fs_storage, middleware) {
 
     // Add a dialog info to the user's history.
     // When the conversation restarts, the index
-    // of dialog_turn_counter starts over again,
-    // hence, previous dialogs will be overwritten,
-    // and this will prevent the array to grow indefinitely.
-    user.history.splice(message.watsonData.context.system.dialog_turn_counter, 1, {
+    // of dialog_turn_counter starts over, hence,
+    // previous dialogs will be overwritten, and
+    // this will prevent the array from growing
+    // indefinitely.
+
+    // The above statement is partially true.
+    // If the user does issue a `reset` command, then,
+    // the turn counter does reset to 0. Although, if
+    // the conversation restarts, because some user's
+    // input triggers the conversation to jump back to
+    // the 'Welcome' node, then the turn counter will 
+    // keep growing. In order to fix this, we always
+    // want to restart the conversation with a `reset`
+    // command, or checking here if the context has in 
+    // its latest traversed nodes the 'Welcome' node,
+    // and, if this is the case, then we set the user's
+    // turn_bias property equal to the current turn counter.
+    let traversed_nodes = message.watsonData.output.nodes_visited;
+    let matching_node = traversed_nodes.find((node_name) => {
+      return node_name == 'Welcome';  
+    });
+
+    let turn_counter = message.watsonData.context.system.dialog_turn_counter;
+    if (matching_node) {
+      user.turn_bias = turn_counter;
+    }
+
+    let history_index = turn_counter - user.turn_bias;
+
+    // Index cannot be smaller than 0.
+    if (history_index < 0) {
+      user.turn_bias += history_index;
+      history_index = 0;
+    }
+
+    // Replace user's dialog
+    user.history.splice(history_index, 1, {
       user_input: message.watsonData.input.text,
       bot_output: message.watsonData.output.text,
       intents: message.watsonData.intents,
@@ -294,7 +328,8 @@ module.exports = function (fs_storage, middleware) {
 
     let submission = message.submission;
     let transcript = {
-      id: sprintf('%s:%s', context.conversation_id, context.system.dialog_turn_counter),
+      id: sprintf('%s:%s', context.conversation_id,
+        context.system.dialog_turn_counter),
       version: context.version,
       frontend: bot.type,
       level: context.language_level,

@@ -16,30 +16,46 @@ module.exports = function (controller, middleware, database) {
   // If the text doesn't represent what the user
   // said, he will be asked to provide a better translation.
   function makeTranscriptResponse(bot, message, transcript, context) {
-    // By default we ask the user to accept before proceeding.
-    let buttons = [{
+
+    let user_options = [];
+    
+    let accept_btn = {
       type: 'postback',
       title: 'Accept',
       payload: sprintf('transcript.%s.%s',
         context.conversation_id,
         context.system.dialog_turn_counter)
-    }];
+    };
+
+    let transcript_btn = {
+      type: 'web_url',
+      title: 'Modify',
+      url: sprintf('%s/facebook/webviews/transcript_form.html?%s.%s.%s.%s',
+        process.env.WEBSERVER_HOSTNAME, 'transcript',
+        message.user, context.conversation_id,
+        context.system.dialog_turn_counter),
+        messenger_extensions: true,
+        webview_height_ratio: 'compact'
+    }
 
     // If the confidence is too low, we will ask the user
-    // to provide a better transcription of what she/he said.
+    // to provide a better transcription of what she/he said,
+    // otherwise the conversation won't be able to continue.
     // The purpose of this is to allow the conversation
     // to continue meaningfully.
     if (transcript.confidence < 0.85) {
-      buttons.push({
-        type: 'web_url',
-        title: 'Modify',
-        url: sprintf('%s/facebook/webviews/transcript_form.html?%s.%s.%s.%s',
-          process.env.WEBSERVER_HOSTNAME, 'transcript',
-          message.user, context.conversation_id,
-          context.system.dialog_turn_counter),
-          messenger_extensions: true,
-          webview_height_ratio: 'compact'
-      });
+      user_options.push(transcript_btn);
+    }
+    else {
+      // The accept button will be available only
+      // if the accuracy is over a certain threshold.
+      user_options.push(accept_btn);
+      
+      // We do also ask the user to provide a more
+      // accurate transcript of what she/he said,
+      // in case what the speech-to-text service
+      // understood is too off.
+      user_options.push(transcript_btn);
     }
 
     return {
